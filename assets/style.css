@@ -3,20 +3,21 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0e0e0e;
-  --surface: #161616;
-  --surface2: #1e1e1e;
-  --border: #2a2a2a;
-  --text: #e8e8e8;
-  --muted: #666;
-  --accent: #c8f060;
-  --accent-dim: rgba(200,240,96,0.10);
+  --bg: #0B1020;
+  --surface: #141A2E;
+  --surface2: #1B2440;
+  --border: #2A3355;
+  --text: #F5F7FF;
+  --muted: #B6C0E3;
+  --accent: #8FA7FF;
+  --accent-dim: rgba(143,167,255,0.12);
   --radius: 12px;
   --font: 'Vazirmatn', sans-serif;
 }
 
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(circle at top, #18213a 0%, var(--bg) 45%);
   color: var(--text);
   font-family: var(--font);
   min-height: 100vh;
@@ -50,9 +51,9 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 12px 16px;
+  padding: 18px 12px 14px;
   text-align: center;
-  transition: border-color 0.2s, transform 0.2s;
+  transition: border-color 0.18s, transform 0.18s;
 }
 .dash-card:hover {
   border-color: var(--accent);
@@ -91,18 +92,18 @@ body {
 }
 .btn-action { margin-top: 0; }
 .btn-success {
-  background: linear-gradient(135deg, #2ecc71, #27ae60);
-  color: #07140d;
+  background: linear-gradient(135deg, #8B7CFF, #5EE7FF);
+  color: #07111F;
 }
 .btn-success:hover { opacity: 0.95; transform: translateY(-1px); }
 .btn-small { width: auto; padding: 10px 12px; font-size: 13px; margin-top: 0; }
 
 .report-card {
-  background: linear-gradient(180deg, rgba(22,22,22,0.95), rgba(14,14,14,0.98));
+  background: linear-gradient(180deg, rgba(46,35,108,0.95), rgba(23,21,59,0.98));
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 18px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.18);
   animation: fadeUp 0.5s ease 0.25s both;
 }
 .report-page { max-width: 1100px; }
@@ -319,9 +320,9 @@ textarea { resize: none; height: 90px; font-size: 14px; cursor: text; }
 /* buttons */
 .btn {
   width: 100%; padding: 15px;
-  border-radius: var(--radius); border: none;
+  border-radius: var(--radius); border: 1px solid transparent;
   font-family: var(--font); font-size: 15px; font-weight: 500;
-  cursor: pointer; transition: all 0.2s; margin-top: 8px;
+  cursor: pointer; transition: all 0.18s; margin-top: 8px;
 }
 .btn-primary { background: var(--accent); color: #0e0e0e; }
 .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
@@ -357,7 +358,7 @@ textarea { resize: none; height: 90px; font-size: 14px; cursor: text; }
 .toast {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(80px);
-  background: #1e1e1e; border: 1px solid var(--border);
+  background: #171D33; border: 1px solid var(--border);
   color: var(--text); padding: 12px 22px;
   border-radius: 100px; font-size: 13px;
   transition: transform 0.3s ease; z-index: 999; white-space: nowrap;

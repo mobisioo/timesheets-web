@@ -4,6 +4,10 @@ const SUPABASE_KEY = 'sb_publishable_JaN4Xy-AB0gOXcJTsPrKoA_hAHQDROM';
 const USER_ID = 5229151285;
 const DEFAULT_HOURLY_RATE = 150000;
 const DEFAULT_OVERTIME_COEFFICIENT = 1.5;
+const STANDARD_DAILY_HOURS = 8;
+const HOLIDAY_DATES = new Set([
+  '1405-01-01','1405-01-02','1405-01-03','1405-01-04','1405-01-13'
+]);
 let HOURLY_RATE = Number(localStorage.getItem('worksheet_hourly_rate') || DEFAULT_HOURLY_RATE);
 let OVERTIME_COEFFICIENT = Number(localStorage.getItem('worksheet_overtime_coefficient') || DEFAULT_OVERTIME_COEFFICIENT);
 
@@ -71,7 +75,8 @@ async function loadDashboard() {
     const monthRecords = records.filter(r => r.date && r.date.startsWith(currentMonthStr));
     const monthHours = monthRecords.reduce((s, r) => s + (parseFloat(r.hours)||0), 0);
 
-    const salary = monthHours * HOURLY_RATE * OVERTIME_COEFFICIENT;
+    const salaryInfo = calculateMonthlySalary(monthHours, today.y, today.m);
+    const salary = salaryInfo.salary;
 
     document.getElementById('dashTotal').textContent = formatHours(totalHours);
     document.getElementById('dashMonth').textContent = formatHours(monthHours);
@@ -97,6 +102,38 @@ function formatMoney(amount) {
   return amount.toLocaleString('fa-IR') + ' تومان';
 }
 
+function getMonthlyWorkingThreshold(jy, jm) {
+  const monthDays = jalaliMonthDays(jy, jm);
+  const weekendDays = Math.floor(monthDays / 7) * 2 + Math.min(2, monthDays % 7);
+  const holidayDays = Array.from({ length: monthDays }, (_, i) => `${jy}-${String(jm).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`)
+    .filter(date => HOLIDAY_DATES.has(date)).length;
+  const workingDays = Math.max(0, monthDays - weekendDays - holidayDays);
+  return {
+    monthDays,
+    workingDays,
+    thresholdHours: workingDays * STANDARD_DAILY_HOURS,
+    holidayDays,
+    weekendDays
+  };
+}
+
+function calculateMonthlySalary(monthHours, jy, jm) {
+  const threshold = getMonthlyWorkingThreshold(jy, jm);
+  const regularHours = Math.min(monthHours, threshold.thresholdHours);
+  const overtimeHours = Math.max(0, monthHours - threshold.thresholdHours);
+  const regularSalary = regularHours * HOURLY_RATE;
+  const overtimeSalary = overtimeHours * HOURLY_RATE * OVERTIME_COEFFICIENT;
+  return {
+    regularHours,
+    overtimeHours,
+    thresholdHours: threshold.thresholdHours,
+    workingDays: threshold.workingDays,
+    salary: regularSalary + overtimeSalary,
+    isOvertime: monthHours > threshold.thresholdHours,
+    thresholdInfo: threshold
+  };
+}
+
 async function loadReports() {
   const reportBody = document.getElementById('reportBody');
   const reportSummary = document.getElementById('reportSummary');
@@ -120,13 +157,19 @@ async function loadReports() {
     }));
 
     const totalHours = rows.reduce((sum, r) => sum + r.hours, 0);
-    const totalSalary = totalHours * HOURLY_RATE * OVERTIME_COEFFICIENT;
+    const selectedYear = document.getElementById('yearFilter')?.value || 'all';
+    const selectedMonth = document.getElementById('monthFilter')?.value || 'all';
+    const calcYear = selectedYear === 'all' ? today.y : Number(selectedYear);
+    const calcMonth = selectedMonth === 'all' ? today.m : Number(selectedMonth);
+    const totalSalaryInfo = calculateMonthlySalary(totalHours, calcYear, calcMonth);
 
     reportSummary.innerHTML = `
       <div class="report-chip">کل ساعات: <strong>${formatHours(totalHours)}</strong></div>
-      <div class="report-chip">مجموع دستمزد: <strong>${formatMoney(totalSalary)}</strong></div>
+      <div class="report-chip">ساعت مجاز ماه: <strong>${formatHours(totalSalaryInfo.thresholdHours)}</strong></div>
+      <div class="report-chip">اضافه‌کاری: <strong>${formatHours(totalSalaryInfo.overtimeHours)}</strong></div>
+      <div class="report-chip">مجموع دستمزد: <strong>${formatMoney(totalSalaryInfo.salary)}</strong></div>
       <div class="report-chip">ضریب اضافه‌کاری: <strong>${OVERTIME_COEFFICIENT.toFixed(1)}</strong></div>
-      <div class="report-chip">تعداد رکورد: <strong>${rows.length}</strong></div>
+      <div class="report-chip">وضعیت: <strong>${totalSalaryInfo.isOvertime ? 'بیشتر از حد مجاز' : 'در حد مجاز'}</strong></div>
     `;
 
     if (!rows.length) {
@@ -156,16 +199,30 @@ function buildReportFilters(tasks, records) {
   const dayFilter = document.getElementById('dayFilter');
   if (!taskFilter || !yearFilter || !monthFilter || !dayFilter) return;
 
-  const years = [...new Set(records.map(r => String(r.date || '').slice(0, 4)).filter(Boolean))].sort((a,b)=>b-a);
-  const currentYear = today.y;
-  yearFilter.innerHTML = '<option value="all">همه سال‌ها</option>' + (years.length
-    ? years.map(y => `<option value="${y}" ${y === String(currentYear) ? 'selected' : ''}>${y}</option>`).join('')
-    : `<option value="${currentYear}" selected>${currentYear}</option>`);
-  monthFilter.innerHTML = '<option value="all">همه ماه‌ها</option>' + JALALI_MONTHS.map((m,i) => `<option value="${i+1}" ${i+1===today.m?'selected':''}>${m}</option>`).join('');
-  dayFilter.innerHTML = '<option value="all">همه روزها</option>';
+  const selected = {
+    task: taskFilter.value || 'all',
+    year: yearFilter.value || 'all',
+    month: monthFilter.value || 'all',
+    day: dayFilter.value || 'all'
+  };
 
+  const years = [...new Set(records.map(r => String(r.date || '').slice(0, 4)).filter(Boolean))].sort((a, b) => b - a);
+  yearFilter.innerHTML = '<option value="all">همه سال‌ها</option>' + (years.length
+    ? years.map(y => `<option value="${y}">${y}</option>`).join('')
+    : `<option value="${today.y}">${today.y}</option>`);
+  monthFilter.innerHTML = '<option value="all">همه ماه‌ها</option>' + JALALI_MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
   taskFilter.innerHTML = '<option value="all">همه تسک‌ها</option>' + tasks.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+
+  yearFilter.value = years.includes(selected.year) ? selected.year : 'all';
+  monthFilter.value = selected.month !== 'all' && JALALI_MONTHS[Number(selected.month) - 1] ? selected.month : 'all';
+  taskFilter.value = selected.task;
+
   updateDayOptions();
+  if (dayFilter.querySelector(`option[value="${selected.day}"]`)) {
+    dayFilter.value = selected.day;
+  } else {
+    dayFilter.value = 'all';
+  }
 }
 
 function applyReportFilters(records, taskMap) {
@@ -196,11 +253,19 @@ function updateDayOptions() {
   const dayFilter = document.getElementById('dayFilter');
   if (!yearFilter || !monthFilter || !dayFilter) return;
 
+  const currentDay = dayFilter.value || 'all';
   const year = yearFilter.value === 'all' ? today.y : Number(yearFilter.value);
   const month = monthFilter.value === 'all' ? today.m : Number(monthFilter.value);
   const maxDay = month === today.m && year === today.y ? today.d : jalaliMonthDays(year, month);
-  const days = Array.from({length:maxDay}, (_, i) => i + 1);
+  const days = Array.from({ length: maxDay }, (_, i) => i + 1);
+
   dayFilter.innerHTML = '<option value="all">همه روزها</option>' + days.map(d => `<option value="${d}">${d}</option>`).join('');
+
+  if (days.includes(Number(currentDay)) || currentDay === 'all') {
+    dayFilter.value = currentDay;
+  } else {
+    dayFilter.value = 'all';
+  }
 }
 
 function exportReportToExcel() {
