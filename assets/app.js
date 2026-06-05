@@ -43,7 +43,8 @@ function getTodayJalali() {
 }
 
 // ===================== STATE =====================
-let state = { date: '', taskId: undefined, taskName: '', tasks: [] };
+let state = { date: '', taskId: undefined, taskName: '', tasks: [], editingTaskId: null, editingRecordId: null };
+let confirmState = { open: false, message: '', onConfirm: null };
 const today = getTodayJalali();
 
 // ===================== SUPABASE =====================
@@ -64,6 +65,12 @@ async function supabaseReq(method, table, body=null, query='') {
 
 // ===================== DASHBOARD =====================
 async function loadDashboard() {
+  const dashTotal = document.getElementById('dashTotal');
+  const dashMonth = document.getElementById('dashMonth');
+  const dashSalary = document.getElementById('dashSalary');
+  const dashError = document.getElementById('dashError');
+  if (!dashTotal || !dashMonth || !dashSalary) return;
+
   try {
     // fetch all work records for this user
     const records = await supabaseReq('GET','work_records',null,`?user_id=eq.${USER_ID}&select=hours,date`);
@@ -78,16 +85,17 @@ async function loadDashboard() {
     const salaryInfo = calculateMonthlySalary(monthHours, today.y, today.m);
     const salary = salaryInfo.salary;
 
-    document.getElementById('dashTotal').textContent = formatHours(totalHours);
-    document.getElementById('dashMonth').textContent = formatHours(monthHours);
-    document.getElementById('dashSalary').textContent = formatMoney(salary);
+    dashTotal.textContent = formatHours(totalHours);
+    dashMonth.textContent = formatHours(monthHours);
+    dashSalary.textContent = formatMoney(salary);
   } catch(e) {
-    document.getElementById('dashTotal').textContent = '—';
-    document.getElementById('dashMonth').textContent = '—';
-    document.getElementById('dashSalary').textContent = '—';
-    const errEl = document.getElementById('dashError');
-    errEl.style.display = 'block';
-    errEl.textContent = 'خطا در بارگذاری اطلاعات: ' + e.message;
+    dashTotal.textContent = '—';
+    dashMonth.textContent = '—';
+    dashSalary.textContent = '—';
+    if (dashError) {
+      dashError.style.display = 'block';
+      dashError.textContent = 'خطا در بارگذاری اطلاعات: ' + e.message;
+    }
   }
 }
 
@@ -148,6 +156,7 @@ async function loadReports() {
 
     const filtered = applyReportFilters(records, taskMap);
     const rows = filtered.map(r => ({
+      id: r.id,
       date: r.date || '—',
       task: taskMap[r.task_id] || 'بدون تسک',
       hours: Number(r.hours || 0),
@@ -173,7 +182,7 @@ async function loadReports() {
     `;
 
     if (!rows.length) {
-      reportBody.innerHTML = '<tr><td colspan="6" class="empty-state">هیچ رکوردی با این فیلترها پیدا نشد.</td></tr>';
+      reportBody.innerHTML = '<tr><td colspan="7" class="empty-state">هیچ رکوردی با این فیلترها پیدا نشد.</td></tr>';
       return;
     }
 
@@ -185,10 +194,16 @@ async function loadReports() {
         <td>${r.start}</td>
         <td>${r.end}</td>
         <td>${r.desc}</td>
+        <td>
+          <div class="table-actions">
+            <button class="mini-btn" onclick="openRecordEditor(${r.id})">اصلاح</button>
+            <button class="mini-btn danger" onclick="deleteRecord(${r.id})">حذف</button>
+          </div>
+        </td>
       </tr>
     `).join('');
   } catch (e) {
-    reportBody.innerHTML = `<tr><td colspan="6" class="error-msg">خطا در بارگذاری گزارش: ${e.message}</td></tr>`;
+    reportBody.innerHTML = `<tr><td colspan="7" class="error-msg">خطا در بارگذاری گزارش: ${e.message}</td></tr>`;
   }
 }
 
@@ -436,7 +451,7 @@ function renderTasks(tasks) {
     <span>—</span><span>بدون تسک مشخص</span>
   </div>`;
   html += '</div>';
-  html += `<button class="btn btn-add-task" onclick="openNewTaskModal()">+ تسک جدید</button>`;
+  html += `<button class="btn btn-add-task" onclick="openTaskManagerModal()">📋 تسک‌ها</button>`;
   container.innerHTML = html;
 }
 
@@ -495,10 +510,46 @@ function resetForm() {
 }
 
 // ===================== NEW TASK MODAL =====================
-function openNewTaskModal() {
-  document.getElementById('newTaskInput').value = '';
-  document.getElementById('taskModal').classList.add('open');
-  setTimeout(()=>document.getElementById('newTaskInput').focus(),100);
+async function openTaskManagerModal() {
+  try {
+    const tasks = await supabaseReq('GET','tasks',null,`?user_id=eq.${USER_ID}&active=eq.true&order=id.asc`);
+    state.tasks = tasks;
+    renderTaskManagerList(tasks);
+    state.editingTaskId = null;
+    document.getElementById('newTaskInput').value = '';
+    document.getElementById('taskModalTitle').textContent = 'مدیریت تسک‌ها';
+    document.getElementById('btnSaveTask').textContent = 'افزودن تسک';
+    document.getElementById('taskModal').classList.add('open');
+    setTimeout(()=>document.getElementById('newTaskInput').focus(),100);
+  } catch (e) {
+    showToast('خطا در بارگذاری تسک‌ها: ' + e.message, true);
+  }
+}
+
+function renderTaskManagerList(tasks) {
+  const list = document.getElementById('taskManagerList');
+  if (!list) return;
+  if (!tasks.length) {
+    list.innerHTML = '<p class="muted-text">هنوز تسکی اضافه نشده است.</p>';
+    return;
+  }
+  list.innerHTML = tasks.map(t => `
+    <div class="task-manager-row">
+      <span>${t.name}</span>
+      <div class="task-mini-actions">
+        <button class="mini-btn" type="button" onclick="startEditTask(${t.id}, '${t.name.replace(/'/g, "\\'")}')">اصلاح</button>
+        <button class="mini-btn danger" type="button" onclick="deleteTask(${t.id})">حذف</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function startEditTask(id, name) {
+  state.editingTaskId = id;
+  document.getElementById('newTaskInput').value = name;
+  document.getElementById('taskModalTitle').textContent = 'اصلاح تسک';
+  document.getElementById('btnSaveTask').textContent = 'ذخیره تغییرات';
+  document.getElementById('newTaskInput').focus();
 }
 
 function openSalaryModal() {
@@ -509,6 +560,9 @@ function openSalaryModal() {
 }
 
 function closeModal() {
+  state.editingTaskId = null;
+  document.getElementById('taskModalTitle').textContent = 'مدیریت تسک‌ها';
+  document.getElementById('btnSaveTask').textContent = 'افزودن تسک';
   document.getElementById('taskModal').classList.remove('open');
 }
 
@@ -535,29 +589,151 @@ async function saveNewTask() {
   const name = document.getElementById('newTaskInput').value.trim();
   if (!name) { showToast('اسم تسک رو بنویس', true); return; }
   const btn = document.getElementById('btnSaveTask');
+  const editingId = state.editingTaskId;
+  const isEditing = Boolean(editingId);
   btn.disabled=true; btn.textContent='در حال ذخیره...';
   try {
-    const [created] = await supabaseReq('POST','tasks',{ user_id: USER_ID, name, active: true });
-    state.tasks.push(created);
+    if (isEditing) {
+      await supabaseReq('PATCH','tasks',{ name }, `?id=eq.${editingId}`);
+      const current = state.tasks.find(t => t.id === editingId);
+      if (current) current.name = name;
+      showToast('تغییر تسک ذخیره شد');
+    } else {
+      const [created] = await supabaseReq('POST','tasks',{ user_id: USER_ID, name, active: true });
+      state.tasks.push(created);
+      showToast('تسک جدید اضافه شد ✓');
+    }
     closeModal();
-    renderTasks(state.tasks);
-    selectTask(created.id, created.name);
-    showToast('تسک جدید اضافه شد ✓');
+    renderTaskManagerList(state.tasks);
+    if (document.getElementById('taskContainer')) renderTasks(state.tasks);
+    if (isEditing) {
+      const task = state.tasks.find(t => t.id === editingId);
+      if (task) selectTask(task.id, task.name);
+    } else {
+      const created = state.tasks[state.tasks.length - 1];
+      if (created) selectTask(created.id, created.name);
+    }
   } catch(e) {
     showToast('خطا: '+e.message, true);
   } finally {
-    btn.disabled=false; btn.textContent='ذخیره';
+    btn.disabled=false; btn.textContent=isEditing ? 'ذخیره تغییرات' : 'ذخیره';
   }
+}
+
+function askConfirm(message, onConfirm) {
+  confirmState = { open: true, message, onConfirm };
+  const modal = document.getElementById('confirmModal');
+  const text = document.getElementById('confirmText');
+  if (modal && text) {
+    text.textContent = message;
+    modal.classList.add('open');
+  }
+}
+
+function closeConfirmModal() {
+  const modal = document.getElementById('confirmModal');
+  if (modal) modal.classList.remove('open');
+  confirmState.open = false;
+  confirmState.onConfirm = null;
+}
+
+async function deleteTask(id) {
+  askConfirm('این تسک حذف شود؟', async () => {
+    try {
+      await supabaseReq('PATCH','tasks',{ active: false }, `?id=eq.${id}`);
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      renderTaskManagerList(state.tasks);
+      if (document.getElementById('taskContainer')) renderTasks(state.tasks);
+      showToast('تسک حذف شد');
+    } catch (e) {
+      showToast('خطا در حذف تسک: ' + e.message, true);
+    } finally {
+      closeConfirmModal();
+    }
+  });
+}
+
+async function openRecordEditor(id) {
+  try {
+    const records = await supabaseReq('GET','work_records',null,`?user_id=eq.${USER_ID}&select=*,task_id&order=date.desc`);
+    const tasks = await supabaseReq('GET','tasks',null,`?user_id=eq.${USER_ID}&active=eq.true&select=id,name`);
+    const record = records.find(r => r.id === id);
+    if (!record) throw new Error('رکورد پیدا نشد');
+
+    state.editingRecordId = id;
+    document.getElementById('recordDateInput').value = record.date || '';
+    document.getElementById('recordStartInput').value = record.start_time || '08:30';
+    document.getElementById('recordEndInput').value = record.end_time || '17:00';
+    document.getElementById('recordDescInput').value = record.description || '';
+    const taskSelect = document.getElementById('recordTaskSelect');
+    taskSelect.innerHTML = '<option value="">بدون تسک</option>' + tasks.map(t => `<option value="${t.id}" ${String(t.id) === String(record.task_id) ? 'selected' : ''}>${t.name}</option>`).join('');
+    document.getElementById('recordModal').classList.add('open');
+  } catch (e) {
+    showToast('خطا در آماده‌سازی ویرایش: ' + e.message, true);
+  }
+}
+
+async function saveRecordEdit() {
+  const date = document.getElementById('recordDateInput').value.trim();
+  const start = document.getElementById('recordStartInput').value;
+  const end = document.getElementById('recordEndInput').value;
+  const desc = document.getElementById('recordDescInput').value.trim();
+  const taskId = document.getElementById('recordTaskSelect').value || null;
+  if (!date || !start || !end) { showToast('تاریخ و ساعت‌ها را کامل کن', true); return; }
+  const hours = calcHours(start, end);
+  if (hours <= 0) { showToast('ساعت پایان باید بعد از شروع باشد', true); return; }
+
+  try {
+    await supabaseReq('PATCH','work_records',{ date, start_time: start, end_time: end, hours, description: desc, task_id: taskId }, `?id=eq.${state.editingRecordId}`);
+    closeRecordModal();
+    loadReports();
+    loadDashboard();
+    showToast('رکورد ساعت کاری ویرایش شد');
+  } catch (e) {
+    showToast('خطا در ذخیره ویرایش: ' + e.message, true);
+  }
+}
+
+async function deleteRecord(id) {
+  askConfirm('این رکورد ساعت کاری حذف شود؟', async () => {
+    try {
+      await supabaseReq('DELETE','work_records',null,`?id=eq.${id}`);
+      await loadReports();
+      await loadDashboard();
+      showToast('رکورد حذف شد');
+    } catch (e) {
+      showToast('خطا در حذف رکورد: ' + e.message, true);
+    } finally {
+      closeConfirmModal();
+    }
+  });
+}
+
+function closeRecordModal() {
+  state.editingRecordId = null;
+  document.getElementById('recordModal').classList.remove('open');
+}
+
+function confirmYes() {
+  if (confirmState.onConfirm) confirmState.onConfirm();
+}
+
+function confirmNo() {
+  closeConfirmModal();
 }
 
 document.addEventListener('click', e => {
   if (e.target.id === 'taskModal') closeModal();
   if (e.target.id === 'salaryModal') closeSalaryModal();
+  if (e.target.id === 'recordModal') closeRecordModal();
+  if (e.target.id === 'confirmModal') closeConfirmModal();
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeModal();
     closeSalaryModal();
+    closeRecordModal();
+    closeConfirmModal();
   }
 });
 

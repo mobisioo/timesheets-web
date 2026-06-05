@@ -36,7 +36,7 @@
     <div id="dashError" class="error-msg" style="display:none;text-align:center;padding:8px 0"></div>
     <div class="quick-actions">
       <button class="btn btn-primary btn-big" onclick="startLog()">+ ثبت ساعت کاری</button>
-      <button class="btn btn-ghost btn-action" onclick="openNewTaskModal()">+ ایجاد تسک جدید</button>
+      <button class="btn btn-ghost btn-action" onclick="openTaskManagerModal()">📋 تسک‌ها</button>
       <button class="btn btn-ghost btn-action" onclick="openSalaryModal()">💰 دستمزد و اضافه‌کاری</button>
       <button class="btn btn-ghost btn-action" onclick="window.location.href='report.html'">📅 گزارش کامل</button>
     </div>
@@ -132,11 +132,23 @@
 <!-- New Task Modal -->
 <div class="modal-backdrop" id="taskModal">
   <div class="modal">
-    <h3>تسک جدید</h3>
+    <h3 id="taskModalTitle">مدیریت تسک‌ها</h3>
+    <div id="taskManagerList" class="task-manager-list"></div>
     <input type="text" id="newTaskInput" placeholder="اسم پروژه یا تسک...">
     <div class="modal-actions">
       <button class="btn btn-primary" id="btnSaveTask" onclick="saveNewTask()">ذخیره</button>
       <button class="btn btn-ghost" onclick="closeModal()">انصراف</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="confirmModal">
+  <div class="modal confirm-modal">
+    <h3>تأیید حذف</h3>
+    <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmYes()">بله، حذف کن</button>
+      <button class="btn btn-ghost" onclick="confirmNo()">خیر</button>
     </div>
   </div>
 </div>

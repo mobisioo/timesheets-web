@@ -64,6 +64,7 @@
               <th>شروع</th>
               <th>پایان</th>
               <th>توضیحات</th>
+              <th>عملیات</th>
             </tr>
           </thead>
           <tbody id="reportBody">
@@ -72,6 +73,39 @@
         </table>
       </div>
     </section>
+  </div>
+
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal confirm-modal">
+      <h3>تأیید حذف</h3>
+      <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="confirmYes()">بله، حذف کن</button>
+        <button class="btn btn-ghost" onclick="confirmNo()">خیر</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="recordModal">
+    <div class="modal">
+      <h3>اصلاح رکورد ساعت کاری</h3>
+      <label for="recordDateInput">تاریخ (سال-ماه-روز)</label>
+      <input type="text" id="recordDateInput" placeholder="1405-01-01">
+      <label for="recordTaskSelect">تسک</label>
+      <div class="select-wrap">
+        <select id="recordTaskSelect"></select>
+      </div>
+      <label for="recordStartInput">شروع</label>
+      <input type="time" id="recordStartInput">
+      <label for="recordEndInput">پایان</label>
+      <input type="time" id="recordEndInput">
+      <label for="recordDescInput">توضیحات</label>
+      <textarea id="recordDescInput" placeholder="توضیح کوتاه..."></textarea>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="saveRecordEdit()">ذخیره تغییرات</button>
+        <button class="btn btn-ghost" onclick="closeRecordModal()">انصراف</button>
+      </div>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>

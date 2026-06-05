@@ -129,6 +129,15 @@ body {
 .report-table td { color: var(--text); }
 .empty-state { color: var(--muted); padding: 18px 0; }
 .muted-text { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.confirm-modal { max-width: 360px; text-align: center; }
+.confirm-modal .modal-actions { justify-content: center; }
+.task-manager-list { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; max-height:220px; overflow-y:auto; }
+.task-manager-row {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  background: var(--surface); border:1px solid var(--border); border-radius: var(--radius);
+  padding:10px 12px;
+}
+.task-manager-row span { color: var(--text); font-size: 14px; }
 
 /* small spinner for dashboard loading */
 .spinner-sm {
@@ -280,6 +289,15 @@ textarea { resize: none; height: 90px; font-size: 14px; cursor: text; }
   transition: all 0.15s;
   display: flex; align-items: center; justify-content: space-between;
 }
+.task-text-wrap { display:flex; flex-direction:column; gap:6px; align-items:flex-start; flex:1; }
+.task-mini-actions, .table-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.mini-btn {
+  border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 999px;
+  padding: 6px 8px; font-size: 11px; cursor: pointer; font-family: var(--font);
+}
+.mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+.mini-btn.danger { color: #ffb4b4; border-color: #5c3b4a; }
+.mini-btn.danger:hover { color: #ff7c7c; border-color: #ff7c7c; }
 .task-item:hover { border-color: var(--accent); background: var(--accent-dim); }
 .task-item.selected { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
 .check {
