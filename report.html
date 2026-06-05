@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>گزارش کامل</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="container report-page">
+    <div class="header">
+      <div class="logo">Work Tracker</div>
+      <h1>گزارش <span>کامل</span></h1>
+    </div>
+
+    <section class="report-card">
+      <div class="report-header">
+        <div>
+          <div class="report-eyebrow">گزارش گیری</div>
+          <h2 class="report-title">فیلتر و مشاهده‌ی کارهای ثبت شده</h2>
+        </div>
+        <div class="report-actions">
+          <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">بازگشت به خانه</button>
+          <button class="btn btn-primary btn-small" id="exportExcelBtn" onclick="exportReportToExcel()">خروجی اکسل</button>
+        </div>
+      </div>
+
+      <div class="filter-grid">
+        <div class="field">
+          <label for="taskFilter">تسک</label>
+          <div class="select-wrap">
+            <select id="taskFilter"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="yearFilter">سال</label>
+          <div class="select-wrap">
+            <select id="yearFilter"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="monthFilter">ماه</label>
+          <div class="select-wrap">
+            <select id="monthFilter"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="dayFilter">روز</label>
+          <div class="select-wrap">
+            <select id="dayFilter"></select>
+          </div>
+        </div>
+      </div>
+
+      <div id="reportSummary" class="report-summary"></div>
+
+      <div class="table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>تاریخ</th>
+              <th>تسک</th>
+              <th>ساعت</th>
+              <th>شروع</th>
+              <th>پایان</th>
+              <th>توضیحات</th>
+            </tr>
+          </thead>
+          <tbody id="reportBody">
+            <tr><td colspan="6" class="loading">در حال بارگذاری گزارش...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="assets/app.js"></script>
+</body>
+</html>

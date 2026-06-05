@@ -2,7 +2,10 @@
 const SUPABASE_URL = 'https://kecwrwxjjcgwuqvjduhk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_JaN4Xy-AB0gOXcJTsPrKoA_hAHQDROM';
 const USER_ID = 5229151285;
-const HOURLY_RATE = 150000; // تومان — اگه نرخ متفاوته اینجا تغییر بده
+const DEFAULT_HOURLY_RATE = 150000;
+const DEFAULT_OVERTIME_COEFFICIENT = 1.5;
+let HOURLY_RATE = Number(localStorage.getItem('worksheet_hourly_rate') || DEFAULT_HOURLY_RATE);
+let OVERTIME_COEFFICIENT = Number(localStorage.getItem('worksheet_overtime_coefficient') || DEFAULT_OVERTIME_COEFFICIENT);
 
 const JALALI_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
 
@@ -68,7 +71,7 @@ async function loadDashboard() {
     const monthRecords = records.filter(r => r.date && r.date.startsWith(currentMonthStr));
     const monthHours = monthRecords.reduce((s, r) => s + (parseFloat(r.hours)||0), 0);
 
-    const salary = monthHours * HOURLY_RATE;
+    const salary = monthHours * HOURLY_RATE * OVERTIME_COEFFICIENT;
 
     document.getElementById('dashTotal').textContent = formatHours(totalHours);
     document.getElementById('dashMonth').textContent = formatHours(monthHours);
@@ -92,6 +95,134 @@ function formatHours(h) {
 
 function formatMoney(amount) {
   return amount.toLocaleString('fa-IR') + ' تومان';
+}
+
+async function loadReports() {
+  const reportBody = document.getElementById('reportBody');
+  const reportSummary = document.getElementById('reportSummary');
+  if (!reportBody || !reportSummary) return;
+
+  try {
+    const records = await supabaseReq('GET','work_records',null,`?user_id=eq.${USER_ID}&select=*,task_id&order=date.desc`);
+    const tasks = await supabaseReq('GET','tasks',null,`?user_id=eq.${USER_ID}&active=eq.true&select=id,name`);
+    const taskMap = Object.fromEntries(tasks.map(t => [t.id, t.name]));
+
+    buildReportFilters(tasks, records);
+
+    const filtered = applyReportFilters(records, taskMap);
+    const rows = filtered.map(r => ({
+      date: r.date || '—',
+      task: taskMap[r.task_id] || 'بدون تسک',
+      hours: Number(r.hours || 0),
+      start: r.start_time || '—',
+      end: r.end_time || '—',
+      desc: r.description || '—'
+    }));
+
+    const totalHours = rows.reduce((sum, r) => sum + r.hours, 0);
+    const totalSalary = totalHours * HOURLY_RATE * OVERTIME_COEFFICIENT;
+
+    reportSummary.innerHTML = `
+      <div class="report-chip">کل ساعات: <strong>${formatHours(totalHours)}</strong></div>
+      <div class="report-chip">مجموع دستمزد: <strong>${formatMoney(totalSalary)}</strong></div>
+      <div class="report-chip">ضریب اضافه‌کاری: <strong>${OVERTIME_COEFFICIENT.toFixed(1)}</strong></div>
+      <div class="report-chip">تعداد رکورد: <strong>${rows.length}</strong></div>
+    `;
+
+    if (!rows.length) {
+      reportBody.innerHTML = '<tr><td colspan="6" class="empty-state">هیچ رکوردی با این فیلترها پیدا نشد.</td></tr>';
+      return;
+    }
+
+    reportBody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.date}</td>
+        <td>${r.task}</td>
+        <td>${formatHours(r.hours)}</td>
+        <td>${r.start}</td>
+        <td>${r.end}</td>
+        <td>${r.desc}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    reportBody.innerHTML = `<tr><td colspan="6" class="error-msg">خطا در بارگذاری گزارش: ${e.message}</td></tr>`;
+  }
+}
+
+function buildReportFilters(tasks, records) {
+  const taskFilter = document.getElementById('taskFilter');
+  const yearFilter = document.getElementById('yearFilter');
+  const monthFilter = document.getElementById('monthFilter');
+  const dayFilter = document.getElementById('dayFilter');
+  if (!taskFilter || !yearFilter || !monthFilter || !dayFilter) return;
+
+  const years = [...new Set(records.map(r => String(r.date || '').slice(0, 4)).filter(Boolean))].sort((a,b)=>b-a);
+  const currentYear = today.y;
+  yearFilter.innerHTML = '<option value="all">همه سال‌ها</option>' + (years.length
+    ? years.map(y => `<option value="${y}" ${y === String(currentYear) ? 'selected' : ''}>${y}</option>`).join('')
+    : `<option value="${currentYear}" selected>${currentYear}</option>`);
+  monthFilter.innerHTML = '<option value="all">همه ماه‌ها</option>' + JALALI_MONTHS.map((m,i) => `<option value="${i+1}" ${i+1===today.m?'selected':''}>${m}</option>`).join('');
+  dayFilter.innerHTML = '<option value="all">همه روزها</option>';
+
+  taskFilter.innerHTML = '<option value="all">همه تسک‌ها</option>' + tasks.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  updateDayOptions();
+}
+
+function applyReportFilters(records, taskMap) {
+  const taskFilter = document.getElementById('taskFilter');
+  const yearFilter = document.getElementById('yearFilter');
+  const monthFilter = document.getElementById('monthFilter');
+  const dayFilter = document.getElementById('dayFilter');
+
+  const selectedTask = taskFilter ? taskFilter.value : 'all';
+  const selectedYear = yearFilter ? yearFilter.value : 'all';
+  const selectedMonth = monthFilter ? monthFilter.value : 'all';
+  const selectedDay = dayFilter ? dayFilter.value : 'all';
+
+  return records.filter(r => {
+    const date = String(r.date || '');
+    const [y,m,d] = date.split('-');
+    const matchesTask = selectedTask === 'all' || String(r.task_id) === String(selectedTask);
+    const matchesYear = selectedYear === 'all' || y === selectedYear;
+    const matchesMonth = selectedMonth === 'all' || m === String(selectedMonth).padStart(2,'0');
+    const matchesDay = selectedDay === 'all' || d === String(selectedDay).padStart(2,'0');
+    return matchesTask && matchesYear && matchesMonth && matchesDay;
+  });
+}
+
+function updateDayOptions() {
+  const yearFilter = document.getElementById('yearFilter');
+  const monthFilter = document.getElementById('monthFilter');
+  const dayFilter = document.getElementById('dayFilter');
+  if (!yearFilter || !monthFilter || !dayFilter) return;
+
+  const year = yearFilter.value === 'all' ? today.y : Number(yearFilter.value);
+  const month = monthFilter.value === 'all' ? today.m : Number(monthFilter.value);
+  const maxDay = month === today.m && year === today.y ? today.d : jalaliMonthDays(year, month);
+  const days = Array.from({length:maxDay}, (_, i) => i + 1);
+  dayFilter.innerHTML = '<option value="all">همه روزها</option>' + days.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+function exportReportToExcel() {
+  const rows = Array.from(document.querySelectorAll('#reportBody tr'));
+  if (!rows.length || rows[0].textContent.includes('هنوز رکوردی') || rows[0].textContent.includes('خطا')) {
+    showToast('رکوردی برای خروجی وجود ندارد', true);
+    return;
+  }
+
+  const csv = [
+    'تاریخ,تسک,ساعت,شروع,پایان,توضیحات',
+    ...Array.from(rows).map(row => Array.from(row.cells).map(cell => cell.textContent.replace(/\n/g, ' ').trim()).join(','))
+  ].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'گزارش-کار.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast('خروجی اکسل آماده شد');
 }
 
 // ===================== NAVIGATION =====================
@@ -305,8 +436,34 @@ function openNewTaskModal() {
   setTimeout(()=>document.getElementById('newTaskInput').focus(),100);
 }
 
+function openSalaryModal() {
+  document.getElementById('hourlyRateInput').value = HOURLY_RATE;
+  document.getElementById('overtimeCoefInput').value = OVERTIME_COEFFICIENT;
+  document.getElementById('salaryCurrentRate').textContent = HOURLY_RATE.toLocaleString('fa-IR');
+  document.getElementById('salaryModal').classList.add('open');
+}
+
 function closeModal() {
   document.getElementById('taskModal').classList.remove('open');
+}
+
+function closeSalaryModal() {
+  document.getElementById('salaryModal').classList.remove('open');
+}
+
+function saveSalarySettings() {
+  const rate = Number(document.getElementById('hourlyRateInput').value || 0);
+  const coef = Number(document.getElementById('overtimeCoefInput').value || 1);
+  if (rate < 0 || coef < 1) { showToast('مقادیر وارد شده نامعتبر است', true); return; }
+  HOURLY_RATE = rate;
+  OVERTIME_COEFFICIENT = coef;
+  localStorage.setItem('worksheet_hourly_rate', String(HOURLY_RATE));
+  localStorage.setItem('worksheet_overtime_coefficient', String(OVERTIME_COEFFICIENT));
+  document.getElementById('salaryCurrentRate').textContent = HOURLY_RATE.toLocaleString('fa-IR');
+  closeSalaryModal();
+  loadDashboard();
+  loadReports();
+  showToast('تنظیمات دستمزد ذخیره شد');
 }
 
 async function saveNewTask() {
@@ -328,8 +485,16 @@ async function saveNewTask() {
   }
 }
 
-document.addEventListener('click', e => { if (e.target.id === 'taskModal') closeModal(); });
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+document.addEventListener('click', e => {
+  if (e.target.id === 'taskModal') closeModal();
+  if (e.target.id === 'salaryModal') closeSalaryModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeModal();
+    closeSalaryModal();
+  }
+});
 
 // ===================== TOAST =====================
 function showToast(msg, isError=false) {
@@ -342,4 +507,11 @@ function showToast(msg, isError=false) {
 // ===================== INIT =====================
 window.addEventListener('DOMContentLoaded', ()=>{
   loadDashboard();
+  if (document.getElementById('reportBody')) {
+    loadReports();
+    document.getElementById('yearFilter')?.addEventListener('change', () => { updateDayOptions(); loadReports(); });
+    document.getElementById('monthFilter')?.addEventListener('change', () => { updateDayOptions(); loadReports(); });
+    document.getElementById('taskFilter')?.addEventListener('change', loadReports);
+    document.getElementById('dayFilter')?.addEventListener('change', loadReports);
+  }
 });
