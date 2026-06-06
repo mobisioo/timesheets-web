@@ -3,72 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>گزارش کامل</title>
+  <title>Reports — Work Tracker</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
+  <div id="passwordGate" class="gate-overlay">
+    <div class="gate-card">
+      <div class="gate-logo">WT</div>
+      <h2 class="gate-title">Work Tracker</h2>
+      <p class="gate-sub">Enter password to continue</p>
+      <div class="gate-input-wrap">
+        <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password">
+        <button onclick="checkPassword()" id="gateBtn">→</button>
+      </div>
+      <p class="gate-error" id="gateError"></p>
+    </div>
+  </div>
+
+  <div id="appRoot" style="display:none">
   <div class="container report-page">
     <div class="header">
-      <div class="logo">Work Tracker</div>
-      <h1>گزارش <span>کامل</span></h1>
+      <div class="logo">WT</div>
+      <h1>Work <span>Reports</span></h1>
     </div>
-
     <section class="report-card">
       <div class="report-header">
         <div>
-          <div class="report-eyebrow">گزارش گیری</div>
-          <h2 class="report-title">فیلتر و مشاهده‌ی کارهای ثبت شده</h2>
+          <div class="report-eyebrow">Analytics</div>
+          <h2 class="report-title">Logged work records</h2>
         </div>
         <div class="report-actions">
-          <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">بازگشت</button>
-          <button class="btn btn-primary btn-small" id="exportExcelBtn" onclick="exportReportToExcel()">خروجی اکسل</button>
+          <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">← Back</button>
+          <button class="btn btn-primary btn-small" onclick="exportReportToExcel()">Export CSV</button>
         </div>
       </div>
-
       <div class="filter-grid">
         <div class="field">
-          <label for="taskFilter">تسک</label>
-          <div class="select-wrap">
-            <select id="taskFilter"></select>
-          </div>
+          <label for="taskFilter">Task</label>
+          <div class="select-wrap"><select id="taskFilter"></select></div>
         </div>
         <div class="field">
-          <label for="yearFilter">سال</label>
-          <div class="select-wrap">
-            <select id="yearFilter"></select>
-          </div>
+          <label for="yearFilter">Year</label>
+          <div class="select-wrap"><select id="yearFilter"></select></div>
         </div>
         <div class="field">
-          <label for="monthFilter">ماه</label>
-          <div class="select-wrap">
-            <select id="monthFilter"></select>
-          </div>
+          <label for="monthFilter">Month</label>
+          <div class="select-wrap"><select id="monthFilter"></select></div>
         </div>
         <div class="field">
-          <label for="dayFilter">روز</label>
-          <div class="select-wrap">
-            <select id="dayFilter"></select>
-          </div>
+          <label for="dayFilter">Day</label>
+          <div class="select-wrap"><select id="dayFilter"></select></div>
         </div>
       </div>
-
       <div id="reportSummary" class="report-summary"></div>
-
       <div class="table-wrap">
         <table class="report-table">
           <thead>
             <tr>
-              <th>تاریخ</th>
-              <th>تسک</th>
-              <th>ساعت</th>
-              <th>شروع</th>
-              <th>پایان</th>
-              <th>توضیحات</th>
-              <th>عملیات</th>
+              <th>Date</th><th>Task</th><th>Hours</th><th>Start</th><th>End</th><th>Notes</th><th>Actions</th>
             </tr>
           </thead>
           <tbody id="reportBody">
-            <tr><td colspan="6" class="loading">در حال بارگذاری گزارش...</td></tr>
+            <tr><td colspan="7" class="loading">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -77,38 +73,36 @@
 
   <div class="modal-backdrop" id="confirmModal">
     <div class="modal confirm-modal">
-      <h3>تأیید حذف</h3>
-      <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
+      <h3>Confirm Delete</h3>
+      <p id="confirmText" class="muted-text">Are you sure?</p>
       <div class="modal-actions">
-        <button class="btn btn-primary" onclick="confirmYes()">بله، حذف کن</button>
-        <button class="btn btn-ghost" onclick="confirmNo()">خیر</button>
+        <button class="btn btn-primary" onclick="confirmYes()">Delete</button>
+        <button class="btn btn-ghost" onclick="confirmNo()">Cancel</button>
       </div>
     </div>
   </div>
-
   <div class="modal-backdrop" id="recordModal">
     <div class="modal">
-      <h3>اصلاح رکورد ساعت کاری</h3>
-      <label for="recordDateInput">تاریخ (سال-ماه-روز)</label>
+      <h3>Edit Record</h3>
+      <label>Date (YYYY-MM-DD)</label>
       <input type="text" id="recordDateInput" placeholder="1405-01-01">
-      <label for="recordTaskSelect">تسک</label>
-      <div class="select-wrap">
-        <select id="recordTaskSelect"></select>
-      </div>
-      <label for="recordStartInput">شروع</label>
+      <label>Task</label>
+      <div class="select-wrap"><select id="recordTaskSelect"></select></div>
+      <label>Start</label>
       <input type="time" id="recordStartInput">
-      <label for="recordEndInput">پایان</label>
+      <label>End</label>
       <input type="time" id="recordEndInput">
-      <label for="recordDescInput">توضیحات</label>
-      <textarea id="recordDescInput" placeholder="توضیح کوتاه..."></textarea>
+      <label>Notes</label>
+      <textarea id="recordDescInput" placeholder="Short description..."></textarea>
       <div class="modal-actions">
-        <button class="btn btn-primary" onclick="saveRecordEdit()">ذخیره تغییرات</button>
-        <button class="btn btn-ghost" onclick="closeRecordModal()">انصراف</button>
+        <button class="btn btn-primary" onclick="saveRecordEdit()">Save Changes</button>
+        <button class="btn btn-ghost" onclick="closeRecordModal()">Cancel</button>
       </div>
     </div>
   </div>
-
   <div class="toast" id="toast"></div>
+  </div><!-- /appRoot -->
+
   <script src="assets/app.js"></script>
 </body>
 </html>
