@@ -12,10 +12,10 @@
 <div id="passwordGate" class="gate-overlay">
   <div class="gate-card">
     <div class="gate-logo">WT</div>
-    <h2 class="gate-title">Work Tracker</h2>
-    <p class="gate-sub">Enter password to continue</p>
+    <h2 class="gate-title">ثبت ساعت کار</h2>
+    <p class="gate-sub">جهت ادامه رمز را وارد کنید.</p>
     <div class="gate-input-wrap">
-      <input type="password" id="passwordInput" placeholder="Password" autocomplete="current-password">
+      <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
       <button onclick="checkPassword()" id="gateBtn">→</button>
     </div>
     <p class="gate-error" id="gateError"></p>
@@ -26,32 +26,32 @@
 <div class="container">
   <div class="header">
     <div class="logo">WT</div>
-    <h1>Work <span>Tracker</span></h1>
+    <h1>ساعت <span>کار</span></h1>
   </div>
 
   <!-- ===== HOME DASHBOARD ===== -->
   <div class="step active" id="stepHome">
     <div class="dashboard">
       <div class="dash-card">
-        <div class="dash-label">Total Hours</div>
+        <div class="dash-label">کل ساعت کار</div>
         <div class="dash-value" id="dashTotal"><span class="spinner-sm"></span></div>
       </div>
       <div class="dash-card">
-        <div class="dash-label">This Month</div>
+        <div class="dash-label">ماه جاری</div>
         <div class="dash-value" id="dashMonth"><span class="spinner-sm"></span></div>
       </div>
       <div class="dash-card accent-card">
-        <div class="dash-label">Salary</div>
+        <div class="dash-label">دستمزد</div>
         <div class="dash-value" id="dashSalary"><span class="spinner-sm"></span></div>
       </div>
     </div>
     <div id="dashError" class="error-msg" style="display:none;text-align:center;padding:8px 0"></div>
     <div class="quick-actions">
-      <button class="btn btn-primary btn-big" onclick="startLog()">+ Log Hours</button>
+      <button class="btn btn-primary btn-big" onclick="startLog()">+ ثبت ساعت کاری</button>
       <div class="action-row">
-        <button class="btn btn-ghost btn-action" onclick="openTaskManagerModal()">Tasks</button>
-        <button class="btn btn-ghost btn-action" onclick="openSalaryModal()">Salary</button>
-        <button class="btn btn-ghost btn-action" onclick="window.location.href='report.html'">Reports</button>
+        <button class="btn btn-ghost btn-action" onclick="openTaskManagerModal()">تسک ها</button>
+        <button class="btn btn-ghost btn-action" onclick="openSalaryModal()">دستمزد</button>
+        <button class="btn btn-ghost btn-action" onclick="window.location.href='report.html'">گزارش</button>
       </div>
     </div>
   </div>
@@ -68,77 +68,77 @@
 
     <!-- Step 0: Date -->
     <div class="step" id="step0">
-      <div class="step-label">Step 1 of 3</div>
-      <div class="step-title">Which day?</div>
+      <div class="step-label">1 از 3</div>
+      <div class="step-title">چه روزی؟</div>
       <div class="date-row">
         <div style="display:flex;flex-direction:column;gap:8px">
-          <label>Year</label>
+          <label>سال</label>
           <div class="year-badge" id="year"></div>
         </div>
         <div class="field">
-          <label>Month</label>
+          <label>ماه</label>
           <div class="select-wrap">
             <select id="month"></select>
           </div>
         </div>
         <div class="field">
-          <label>Day</label>
+          <label>روز</label>
           <div class="select-wrap">
             <select id="day"></select>
           </div>
         </div>
       </div>
-      <button class="btn btn-primary" onclick="goToStep1()">Continue</button>
-      <button class="btn btn-ghost" onclick="backToHome()">Back</button>
+      <button class="btn btn-primary" onclick="goToStep1()">ادامه</button>
+      <button class="btn btn-ghost" onclick="backToHome()">برگشت</button>
     </div>
 
     <!-- Step 1: Task -->
     <div class="step" id="step1">
-      <div class="step-label">Step 2 of 3</div>
-      <div class="step-title">What did you work on?</div>
+      <div class="step-label">2 از 3</div>
+      <div class="step-title">چه کاری انجام دادی؟</div>
       <div id="taskContainer">
         <div class="loading"><div class="spinner"></div> Loading...</div>
       </div>
-      <button class="btn btn-primary" id="btnTask" onclick="goToStep2()" disabled>Continue</button>
-      <button class="btn btn-ghost" onclick="goToStep(0)">Back</button>
+      <button class="btn btn-primary" id="btnTask" onclick="goToStep2()" disabled>ادامه</button>
+      <button class="btn btn-ghost" onclick="goToStep(0)">برگشت</button>
     </div>
 
     <!-- Step 2: Time + Description -->
     <div class="step" id="step2">
-      <div class="step-label">Step 3 of 3</div>
-      <div class="step-title">Work hours</div>
+      <div class="step-label">3 از 3</div>
+      <div class="step-title">ساعت کاری</div>
 
       <input type="hidden" id="startTimeVal">
       <input type="hidden" id="endTimeVal">
 
       <div class="time-picker-group">
         <div class="time-field">
-          <label>Start</label>
+          <label>شروع</label>
           <div class="time-selects" id="startTimePicker"></div>
         </div>
         <div class="time-field">
-          <label>End</label>
+          <label>پایان</label>
           <div class="time-selects" id="endTimePicker"></div>
         </div>
       </div>
 
       <div class="field" style="margin-bottom:20px">
-        <label>Description (optional)</label>
-        <textarea id="description" placeholder="What did you do..."></textarea>
+        <label>توضیحات (اختیاری)</label>
+        <textarea id="description" placeholder="چه کاری انجام دادی..."></textarea>
       </div>
-      <button class="btn btn-primary" id="btnSubmit" onclick="submitRecord()">Submit</button>
-      <button class="btn btn-ghost" onclick="goToStep(1)">Back</button>
+      <button class="btn btn-primary" id="btnSubmit" onclick="submitRecord()">ثبت</button>
+      <button class="btn btn-ghost" onclick="goToStep(1)">برگشت</button>
     </div>
 
     <!-- Step 3: Success -->
     <div class="step" id="step3">
       <div class="success-box">
         <div class="success-icon">✓</div>
-        <h2>Logged!</h2>
+        <h2>ثبت شد!</h2>
         <p id="successMsg"></p>
         <div class="summary-pill" id="summaryPill"></div>
-        <button class="btn btn-primary" onclick="resetForm()">Log Another Day</button>
-        <button class="btn btn-ghost" onclick="backToHome()">Home</button>
+        <button class="btn btn-primary" onclick="resetForm()">ثبت روز دیگر</button>
+        <button class="btn btn-ghost" onclick="backToHome()">صفحه اصلی</button>
       </div>
     </div>
   </div>
@@ -147,38 +147,38 @@
 <!-- Task Modal -->
 <div class="modal-backdrop" id="taskModal">
   <div class="modal">
-    <h3 id="taskModalTitle">Manage Tasks</h3>
+    <h3 id="taskModalTitle">مدیریت وظایف</h3>
     <div id="taskManagerList" class="task-manager-list"></div>
-    <input type="text" id="newTaskInput" placeholder="Project or task name...">
+    <input type="text" id="newTaskInput" placeholder="نام پروژه یا وظیفه...">
     <div class="modal-actions">
-      <button class="btn btn-primary" id="btnSaveTask" onclick="saveNewTask()">Add Task</button>
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="btnSaveTask" onclick="saveNewTask()">افزودن وظیفه</button>
+      <button class="btn btn-ghost" onclick="closeModal()">لغو</button>
     </div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="confirmModal">
   <div class="modal confirm-modal">
-    <h3>Confirm Delete</h3>
-    <p id="confirmText" class="muted-text">Are you sure?</p>
+    <h3>تأیید حذف</h3>
+    <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
     <div class="modal-actions">
-      <button class="btn btn-primary" onclick="confirmYes()">Delete</button>
-      <button class="btn btn-ghost" onclick="confirmNo()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmYes()">حذف</button>
+      <button class="btn btn-ghost" onclick="confirmNo()">لغو</button>
     </div>
   </div>
 </div>
 
 <div class="modal-backdrop" id="salaryModal">
   <div class="modal">
-    <h3>Salary Settings</h3>
-    <p class="muted-text">Current rate: <strong id="salaryCurrentRate">0</strong> Toman/hr</p>
-    <label for="hourlyRateInput">Hourly rate (Toman)</label>
+    <h3>تنظیمات دستمزد</h3>
+    <p class="muted-text">نرخ فعلی: <strong id="salaryCurrentRate">0</strong> تومان/ساعت</p>
+    <label for="hourlyRateInput">نرخ ساعتی (تومان)</label>
     <input type="number" id="hourlyRateInput" min="0" step="1000" placeholder="150000">
-    <label for="overtimeCoefInput">Overtime coefficient</label>
+    <label for="overtimeCoefInput">ضریب اضافه کار</label>
     <input type="number" id="overtimeCoefInput" min="1" step="0.1" placeholder="1.5">
     <div class="modal-actions">
-      <button class="btn btn-primary" id="btnSaveSalary" onclick="saveSalarySettings()">Save</button>
-      <button class="btn btn-ghost" onclick="closeSalaryModal()">Cancel</button>
+      <button class="btn btn-primary" id="btnSaveSalary" onclick="saveSalarySettings()">ثبت</button>
+      <button class="btn btn-ghost" onclick="closeSalaryModal()">لغو</button>
     </div>
   </div>
 </div>
