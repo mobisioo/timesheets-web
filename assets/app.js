@@ -98,8 +98,8 @@ async function supabaseReq(method, table, body=null, query='') {
 function formatHours(h) {
   const hh = Math.floor(h);
   const mm = Math.round((h - hh) * 60);
-  if (mm === 0) return `${hh}ساعت`;
-  return `${hh}:${String(mm).padStart(2,'0')}ساعت`;
+  if (mm === 0) return `${hh} ساعت `;
+  return `${hh}:${String(mm).padStart(2,'0')} ساعت `;
 }
 
 function formatMoney(amount) {
