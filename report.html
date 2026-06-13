@@ -11,7 +11,14 @@
     <div class="gate-card">
       <div class="gate-logo">WT</div>
       <h2 class="gate-title">ساعت کار</h2>
+<<<<<<< HEAD
       <p class="gate-sub">جهت ادامه رمز را وارد کنید.</p>
+=======
+      <p class="gate-sub">برای مشاهده گزارش وارد شوید.</p>
+      <div class="gate-input-wrap" style="direction:rtl">
+        <input type="text" id="loginInput" placeholder="نام کاربری" autocomplete="username" style="letter-spacing:0;text-align:right;direction:ltr">
+      </div>
+>>>>>>> 9a05b88 (v1.06)
       <div class="gate-input-wrap">
         <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
         <button onclick="checkPassword()" id="gateBtn">→</button>
@@ -19,13 +26,16 @@
       <p class="gate-error" id="gateError"></p>
     </div>
   </div>
-   
 
   <div id="appRoot" style="display:none">
   <div class="container report-page">
     <div class="header">
       <div class="logo">WT</div>
       <h1>Work <span>گزارش ساعات کار</span></h1>
+<<<<<<< HEAD
+=======
+      <p class="muted-text" id="currentUserBadge" style="margin-top:-8px"></p>
+>>>>>>> 9a05b88 (v1.06)
     </div>
     <section class="report-card">
       <div class="report-header">
@@ -35,10 +45,21 @@
         </div>
         <div class="report-actions">
           <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">← برگشت</button>
+<<<<<<< HEAD
           <button class="btn btn-primary btn-small" onclick="exportReportToExcel()">خروجی CSV</button>
+=======
+          <button class="btn btn-ghost btn-small" id="adminReportBtn" style="display:none" onclick="window.location.href='admin.html'">پنل ادمین</button>
+          <button class="btn btn-primary btn-small" onclick="exportReportToExcel()">خروجی CSV</button>
+          <button class="btn btn-primary btn-small" onclick="exportOdooReport()">خروجی odoo</button>
+          <button class="btn btn-ghost btn-small" onclick="logout()">خروج</button>
+>>>>>>> 9a05b88 (v1.06)
         </div>
       </div>
       <div class="filter-grid">
+        <div class="field" id="userFilterWrap" style="display:none">
+          <label for="userFilter">کاربر</label>
+          <div class="select-wrap"><select id="userFilter"></select></div>
+        </div>
         <div class="field">
           <label for="taskFilter">تسک</label>
           <div class="select-wrap"><select id="taskFilter"></select></div>
@@ -61,11 +82,19 @@
         <table class="report-table">
           <thead>
             <tr>
+<<<<<<< HEAD
               <th>تاریخ</th><th>تسک</th><th>مجموع ساعت کاری</th><th>شروع</th><th>پایان</th><th>یادداشت‌ها</th><th>اقدامات</th>
             </tr>
           </thead>
           <tbody id="reportBody">
             <tr><td colspan="7" class="loading">در حال بارگذاری...</td></tr>
+=======
+              <th>کاربر</th><th>تاریخ</th><th>تسک</th><th>مجموع ساعت کاری</th><th>شروع</th><th>پایان</th><th>یادداشت‌ها</th><th>اقدامات</th>
+            </tr>
+          </thead>
+          <tbody id="reportBody">
+            <tr><td colspan="8" class="loading">در حال بارگذاری...</td></tr>
+>>>>>>> 9a05b88 (v1.06)
           </tbody>
         </table>
       </div>
@@ -77,7 +106,11 @@
       <h3>تأیید حذف</h3>
       <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
       <div class="modal-actions">
+<<<<<<< HEAD
         <button class="btn btn-primary" onclick="confirmYes()">حذف</button>
+=======
+        <button class="btn btn-primary" onclick="confirmYes()">تأیید</button>
+>>>>>>> 9a05b88 (v1.06)
         <button class="btn btn-ghost" onclick="confirmNo()">لغو</button>
       </div>
     </div>
@@ -104,6 +137,8 @@
   <div class="toast" id="toast"></div>
   </div><!-- /appRoot -->
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="assets/app.js"></script>
 </body>
 </html>

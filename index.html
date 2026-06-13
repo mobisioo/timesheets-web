@@ -8,17 +8,49 @@
 </head>
 <body>
 
-<!-- ===== PASSWORD GATE ===== -->
+<!-- ===== AUTH GATE ===== -->
 <div id="passwordGate" class="gate-overlay">
   <div class="gate-card">
     <div class="gate-logo">WT</div>
     <h2 class="gate-title">ثبت ساعت کار</h2>
+<<<<<<< HEAD
     <p class="gate-sub">جهت ادامه رمز را وارد کنید.</p>
     <div class="gate-input-wrap">
       <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
       <button onclick="checkPassword()" id="gateBtn">→</button>
+=======
+    <p class="gate-sub">برای ادامه با حساب کاربری وارد شوید.</p>
+    <div class="gate-login-grid">
+      <div class="gate-fields">
+        <input type="text" id="loginInput" placeholder="نام کاربری" autocomplete="username" style="direction:ltr;text-align:center">
+        <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
+      </div>
+      <button class="gate-submit-btn" onclick="checkPassword()" id="gateBtn" type="button" aria-label="ورود">→</button>
+      
+>>>>>>> 9a05b88 (v1.06)
     </div>
     <p class="gate-error" id="gateError"></p>
+    <button class="btn btn-primary signup-entry-btn" type="button" onclick="openSignupModal()">ثبت‌نام</button>
+  </div>
+</div>
+
+<!-- Signup Modal: خارج از appRoot است تا قبل از ورود هم باز شود -->
+<div class="modal-backdrop" id="signupModal" style="z-index:1100">
+  <div class="modal">
+    <h3>ثبت‌نام کاربر جدید</h3>
+    <label for="signupUsername">نام کاربری</label>
+    <input type="text" id="signupUsername" placeholder="username" autocomplete="username" style="direction:ltr;text-align:center">
+    <label for="signupFullName">نام نمایشی</label>
+    <input type="text" id="signupFullName" placeholder="نام و نام خانوادگی">
+    <label for="signupPassword">رمز عبور</label>
+    <input type="password" id="signupPassword" placeholder="رمز عبور" autocomplete="new-password">
+    <label for="signupPassword2">تکرار رمز عبور</label>
+    <input type="password" id="signupPassword2" placeholder="تکرار رمز عبور" autocomplete="new-password">
+    <p class="gate-error" id="signupError"></p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="btnSignup" type="button" onclick="registerUser()">ثبت‌نام</button>
+      <button class="btn btn-ghost" type="button" onclick="closeSignupModal()">لغو</button>
+    </div>
   </div>
 </div>
 
@@ -27,6 +59,10 @@
   <div class="header">
     <div class="logo">WT</div>
     <h1>ساعت <span>کار</span></h1>
+<<<<<<< HEAD
+=======
+    <p class="muted-text" id="currentUserBadge" style="margin-top:-8px"></p>
+>>>>>>> 9a05b88 (v1.06)
   </div>
 
   <!-- ===== HOME DASHBOARD ===== -->
@@ -53,6 +89,8 @@
         <button class="btn btn-ghost btn-action" onclick="openSalaryModal()">دستمزد</button>
         <button class="btn btn-ghost btn-action" onclick="window.location.href='report.html'">گزارش</button>
       </div>
+      <button class="btn btn-ghost" id="adminNavBtn" style="display:none" onclick="window.location.href='admin.html'">پنل ادمین</button>
+      <button class="btn btn-ghost" onclick="logout()">خروج</button>
     </div>
   </div>
 
@@ -162,7 +200,11 @@
     <h3>تأیید حذف</h3>
     <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
     <div class="modal-actions">
+<<<<<<< HEAD
       <button class="btn btn-primary" onclick="confirmYes()">حذف</button>
+=======
+      <button class="btn btn-primary" onclick="confirmYes()">تأیید</button>
+>>>>>>> 9a05b88 (v1.06)
       <button class="btn btn-ghost" onclick="confirmNo()">لغو</button>
     </div>
   </div>
@@ -186,6 +228,7 @@
 <div class="toast" id="toast"></div>
 </div><!-- /appRoot -->
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

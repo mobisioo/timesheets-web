@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پنل ادمین — ساعت کار</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div id="passwordGate" class="gate-overlay">
+    <div class="gate-card">
+      <div class="gate-logo">WT</div>
+      <h2 class="gate-title">پنل ادمین</h2>
+      <p class="gate-sub">برای مدیریت کاربران وارد شوید.</p>
+      <div class="gate-input-wrap" style="direction:ltr">
+        <input type="text" id="loginInput" placeholder="نام کاربری" autocomplete="username" style="letter-spacing:0;text-align:center;direction:ltr">
+      </div>
+      <div class="gate-input-wrap">
+        <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
+        <button onclick="checkPassword()" id="gateBtn">→</button>
+      </div>
+      <p class="gate-error" id="gateError"></p>
+    </div>
+  </div>
+
+  <div id="appRoot" style="display:none">
+  <div class="container report-page">
+    <div class="header">
+      <div class="logo">WT</div>
+      <h1>Admin <span>مدیریت کاربران</span></h1>
+      <p class="muted-text" id="currentUserBadge" style="margin-top:-8px"></p>
+    </div>
+
+    <section class="report-card" style="margin-bottom:16px">
+      <div class="report-header">
+        <div>
+          <div class="report-eyebrow">کاربر جدید</div>
+          <h2 class="report-title">افزودن یوزر</h2>
+        </div>
+        <div class="report-actions">
+          <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">ثبت کار</button>
+          <button class="btn btn-ghost btn-small" onclick="window.location.href='report.html'">گزارش</button>
+          <button class="btn btn-ghost btn-small" onclick="logout()">خروج</button>
+        </div>
+      </div>
+      <div class="filter-grid">
+        <div class="field">
+          <label for="newUserUsername">نام کاربری</label>
+          <input type="text" id="newUserUsername" placeholder="username" style="direction:ltr;text-align:left">
+        </div>
+        <div class="field">
+          <label for="newUserFullName">نام نمایشی</label>
+          <input type="text" id="newUserFullName" placeholder="نام و نام خانوادگی">
+        </div>
+        <div class="field">
+          <label for="newUserPassword">رمز عبور</label>
+          <input type="password" id="newUserPassword" placeholder="رمز عبور" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="newUserRole">نقش</label>
+          <div class="select-wrap">
+            <select id="newUserRole">
+              <option value="user">یوزر</option>
+              <option value="admin">ادمین</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="newUserHourlyRate">نرخ ساعتی</label>
+          <input type="number" id="newUserHourlyRate" min="0" step="1000" value="150000">
+        </div>
+        <div class="field">
+          <label for="newUserOvertimeCoef">ضریب اضافه‌کاری</label>
+          <input type="number" id="newUserOvertimeCoef" min="1" step="0.1" value="1.5">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createAdminUser()">افزودن کاربر</button>
+    </section>
+
+    <section class="report-card">
+      <div class="report-header">
+        <div>
+          <div class="report-eyebrow">لیست</div>
+          <h2 class="report-title">کاربران سیستم</h2>
+        </div>
+        <div class="report-actions">
+          <button class="btn btn-ghost btn-small" onclick="loadAdminUsers()">به‌روزرسانی</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>نام نمایشی</th><th>نام کاربری</th><th>نقش</th><th>وضعیت</th><th>نرخ</th><th>ضریب</th><th>اقدامات</th>
+            </tr>
+          </thead>
+          <tbody id="adminUsersBody">
+            <tr><td colspan="7" class="loading">در حال بارگذاری...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal confirm-modal">
+      <h3>تأیید عملیات</h3>
+      <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="confirmYes()">تأیید</button>
+        <button class="btn btn-ghost" onclick="confirmNo()">لغو</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  </div><!-- /appRoot -->
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
