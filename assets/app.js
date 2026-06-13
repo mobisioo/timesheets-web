@@ -6,16 +6,9 @@ const STANDARD_DAILY_HOURS = 8;
 const ODOO_TEMPLATE_PATH = 'templates/odoo-template.xlsx';
 const ODOO_DEFAULT_PROJECT_NAME = 'BI (business intelligence)';
 
-<<<<<<< HEAD
-// ===== رمز عبور — هر چیزی که می‌خواهید =====
-const APP_PASSWORD = '1610';
-const SESSION_KEY = 'wt_auth_v1';
-// ============================================
-=======
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: false }
 });
->>>>>>> 9a05b88 (v1.06)
 
 const HOLIDAY_DATES = new Set([
   '1405-01-01','1405-01-02','1405-01-03','1405-01-04','1405-01-13'
@@ -23,35 +16,6 @@ const HOLIDAY_DATES = new Set([
 
 const JALALI_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
 
-<<<<<<< HEAD
-const JALALI_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-const JALALI_MONTHS_FA = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-
-// ===================== دروازه رمز عبور =====================
-function checkPassword() {
-  const input = document.getElementById('passwordInput');
-  const error = document.getElementById('gateError');
-  if (!input) return;
-  if (input.value === APP_PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, '1');
-    document.getElementById('passwordGate').style.display = 'none';
-    document.getElementById('appRoot').style.display = 'block';
-    error.textContent = '';
-    input.value = '';
-    loadDashboard();
-    if (document.getElementById('reportBody')) initReportPage();
-  } else {
-    error.textContent = 'رمز عبور اشتباه است.';
-    input.value = '';
-    input.focus();
-    const card = document.querySelector('.gate-card');
-    card.style.animation = 'none';
-    void card.offsetHeight;
-    card.style.animation = 'shake 0.4s ease';
-  }
-}
-
-=======
 let currentUser = null; // { id, username, full_name, role, active, hourly_rate, overtime_coefficient, telegram_username, telegram_chat_id }
 let HOURLY_RATE = DEFAULT_HOURLY_RATE;
 let OVERTIME_COEFFICIENT = DEFAULT_OVERTIME_COEFFICIENT;
@@ -466,7 +430,6 @@ function isOwnRecord(record) {
   return String(record?.user_id || '') === requireUserId();
 }
 
->>>>>>> 9a05b88 (v1.06)
 // ===================== ابزارهای جلالی =====================
 function toJalali(gy, gm, gd) {
   let g_day_no = 365*(gy-1600) + Math.floor((gy-1597)/4) - Math.floor((gy-1601)/100) + Math.floor((gy-1601)/400);
@@ -553,33 +516,6 @@ function getTodayJalali() {
   return toJalali(n.getFullYear(), n.getMonth()+1, n.getDate());
 }
 
-<<<<<<< HEAD
-// ===================== وضعیت =====================
-let state = { date: '', taskId: undefined, taskName: '', tasks: [], editingTaskId: null, editingRecordId: null };
-let confirmState = { open: false, message: '', onConfirm: null };
-const today = getTodayJalali();
-
-// ===================== سوپابیس =====================
-async function supabaseReq(method, table, body=null, query='') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query}`, {
-    method,
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': method==='POST' ? 'return=representation' : ''
-    },
-    body: body ? JSON.stringify(body) : null
-  });
-  if (!res.ok) { const e = await res.json(); throw new Error(e.message || e.hint || JSON.stringify(e)); }
-  return method==='DELETE' ? null : res.json();
-}
-
-// ===================== توابع قالب‌بندی =====================
-function formatHours(h) {
-  const hh = Math.floor(h);
-  const mm = Math.round((h - hh) * 60);
-=======
 const today = getTodayJalali();
 
 // ===================== قالب‌بندی =====================
@@ -597,17 +533,12 @@ function formatHours(h) {
   const safe = Number(h || 0);
   const hh = Math.floor(safe);
   const mm = Math.round((safe - hh) * 60);
->>>>>>> 9a05b88 (v1.06)
   if (mm === 0) return `${hh} ساعت `;
   return `${hh}:${String(mm).padStart(2,'0')} ساعت `;
 }
 
 function formatMoney(amount) {
-<<<<<<< HEAD
-  return amount.toLocaleString('en-US') + ' ت';
-=======
   return Number(amount || 0).toLocaleString('en-US') + ' ت';
->>>>>>> 9a05b88 (v1.06)
 }
 
 // ===================== داشبورد =====================
@@ -637,14 +568,7 @@ async function loadDashboard() {
     dashTotal.textContent = '—';
     dashMonth.textContent = '—';
     dashSalary.textContent = '—';
-<<<<<<< HEAD
-    if (dashError) {
-      dashError.style.display = 'block';
-      dashError.textContent = 'خطا در بارگذاری اطلاعات: ' + e.message;
-    }
-=======
     if (dashError) { dashError.style.display = 'block'; dashError.textContent = 'خطا در بارگذاری اطلاعات: ' + e.message; }
->>>>>>> 9a05b88 (v1.06)
   }
 }
 
@@ -672,8 +596,6 @@ function calculateMonthlySalary(monthHours, jy, jm) {
 }
 
 // ===================== گزارش‌ها =====================
-<<<<<<< HEAD
-=======
 async function initReportPage() {
   await loadReportUsersFilter();
   await loadReports();
@@ -695,7 +617,6 @@ async function loadReportUsersFilter() {
   select.innerHTML = '<option value="all">همه کاربران</option>' + data.map(u => `<option value="${u.id}">${escapeHtml(u.full_name || u.username)}</option>`).join('');
 }
 
->>>>>>> 9a05b88 (v1.06)
 async function loadReports() {
   const reportBody = document.getElementById('reportBody');
   if (!reportBody) return;
@@ -710,47 +631,6 @@ async function loadReports() {
     const selectedUser = document.getElementById('userFilter')?.value || 'all';
     const currentUserId = requireUserId();
 
-<<<<<<< HEAD
-    const totalHours = rows.reduce((sum, r) => sum + r.hours, 0);
-    const selectedYear = document.getElementById('yearFilter')?.value || 'all';
-    const selectedMonth = document.getElementById('monthFilter')?.value || 'all';
-    const calcYear = selectedYear === 'all' ? today.y : Number(selectedYear);
-    const calcMonth = selectedMonth === 'all' ? today.m : Number(selectedMonth);
-    const totalSalaryInfo = calculateMonthlySalary(totalHours, calcYear, calcMonth);
-
-    reportSummary.innerHTML = `
-      <div class="report-chip">مجموع: <strong>${formatHours(totalHours)}</strong></div>
-      <div class="report-chip">سقف ماهانه: <strong>${formatHours(totalSalaryInfo.thresholdHours)}</strong></div>
-      <div class="report-chip">اضافه‌کاری: <strong>${formatHours(totalSalaryInfo.overtimeHours)}</strong></div>
-      <div class="report-chip">حقوق: <strong>${formatMoney(totalSalaryInfo.salary)}</strong></div>
-      <div class="report-chip">ضریب اضافه‌کاری: <strong>${OVERTIME_COEFFICIENT.toFixed(1)}x</strong></div>
-      <div class="report-chip">وضعیت: <strong>${totalSalaryInfo.isOvertime ? 'اضافه‌کاری' : 'عادی'}</strong></div>
-    `;
-
-    if (!rows.length) {
-      reportBody.innerHTML = '<tr><td colspan="7" class="empty-state">رکوردی برای فیلترهای انتخاب‌شده یافت نشد.</td></tr>';
-      return;
-    }
-
-    reportBody.innerHTML = rows.map(r => `
-      <tr>
-        <td>${r.date}</td>
-        <td style="font-family:var(--font)">${r.task}</td>
-        <td>${formatHours(r.hours)}</td>
-        <td>${r.start}</td>
-        <td>${r.end}</td>
-        <td style="font-family:var(--font);font-size:11px">${r.desc}</td>
-        <td>
-          <div class="table-actions" style="justify-content:center">
-            <button class="mini-btn" onclick="openRecordEditor(${r.id})">ویرایش</button>
-            <button class="mini-btn danger" onclick="deleteRecord(${r.id})">حذف</button>
-          </div>
-        </td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    reportBody.innerHTML = `<tr><td colspan="7" class="error-msg">خطا در بارگذاری گزارش‌ها: ${e.message}</td></tr>`;
-=======
     // قانون اصلی گزارش:
     // ادمین همه رکوردها را می‌بیند، کاربر عادی فقط رکوردهای خودش را.
     if (!isCurrentUserAdmin()) {
@@ -780,7 +660,6 @@ async function loadReports() {
     renderReportFromCache();
   } catch (e) {
     reportBody.innerHTML = `<tr><td colspan="8" class="error-msg">خطا در بارگذاری گزارش‌ها: ${escapeHtml(e.message)}</td></tr>`;
->>>>>>> 9a05b88 (v1.06)
   }
 }
 
@@ -796,18 +675,9 @@ function buildReportFilters(records) {
   const taskPairs = new Map();
   records.forEach(r => { if (r.tasks?.id) taskPairs.set(String(r.tasks.id), r.tasks.name); });
 
-<<<<<<< HEAD
-  const years = [...new Set(records.map(r => String(r.date||'').slice(0,4)).filter(Boolean))].sort((a,b) => b-a);
-  yearFilter.innerHTML = '<option value="all">همه سال‌ها</option>' + (years.length
-    ? years.map(y => `<option value="${y}">${y}</option>`).join('')
-    : `<option value="${today.y}">${today.y}</option>`);
-  monthFilter.innerHTML = '<option value="all">همه ماه‌ها</option>' + JALALI_MONTHS.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
-  taskFilter.innerHTML = '<option value="all">همه وظایف</option>' + tasks.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-=======
   yearFilter.innerHTML = '<option value="all">همه سال‌ها</option>' + (years.length ? years.map(y => `<option value="${y}">${y}</option>`).join('') : `<option value="${today.y}">${today.y}</option>`);
   monthFilter.innerHTML = '<option value="all">همه ماه‌ها</option>' + JALALI_MONTHS.map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
   taskFilter.innerHTML = '<option value="all">همه وظایف</option>' + Array.from(taskPairs.entries()).map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
->>>>>>> 9a05b88 (v1.06)
 
   yearFilter.value = years.includes(selected.year) ? selected.year : 'all';
   monthFilter.value = selected.month !== 'all' && JALALI_MONTHS[Number(selected.month)-1] ? selected.month : 'all';
@@ -912,13 +782,8 @@ function exportReportToExcel() {
     showToast('رکوردی برای خروجی وجود ندارد', true); return;
   }
   const csv = [
-<<<<<<< HEAD
-    'تاریخ,وظیفه,ساعت,شروع,پایان,توضیحات',
-    ...Array.from(rows).map(row => Array.from(row.cells).slice(0,6).map(cell => cell.textContent.replace(/\n/g,' ').trim()).join(','))
-=======
     'کاربر,تاریخ,وظیفه,ساعت,شروع,پایان,توضیحات',
     ...Array.from(rows).map(row => Array.from(row.cells).slice(0,7).map(cell => `"${cell.textContent.replace(/"/g,'""').replace(/\n/g,' ').trim()}"`).join(','))
->>>>>>> 9a05b88 (v1.06)
   ].join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -928,9 +793,6 @@ function exportReportToExcel() {
   showToast('CSV ذخیره شد');
 }
 
-<<<<<<< HEAD
-// ===================== ناوبری =====================
-=======
 
 function getOdooExportRows() {
   const rows = applyReportFilters(reportRecordsCache);
@@ -1041,7 +903,6 @@ async function exportOdooReport() {
 
 
 // ===================== ناوبری فرم =====================
->>>>>>> 9a05b88 (v1.06)
 function startLog() {
   document.getElementById('stepHome').style.display = 'none';
   document.getElementById('formFlow').style.display = 'block';
@@ -1057,10 +918,6 @@ function backToHome() {
   loadDashboard();
 }
 
-<<<<<<< HEAD
-// ===================== منوهای تاریخ =====================
-=======
->>>>>>> 9a05b88 (v1.06)
 function buildDateDropdowns() {
   document.getElementById('year').textContent = today.y;
   const monthSel = document.getElementById('month');
@@ -1091,10 +948,6 @@ function buildDayDropdown(jm, selectedDay, maxDay=null) {
   }
 }
 
-<<<<<<< HEAD
-// ===================== انتخابگر زمان =====================
-=======
->>>>>>> 9a05b88 (v1.06)
 function buildTimePicker(containerId, inputId, defaultHour=8, defaultMin='30') {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
@@ -1132,10 +985,6 @@ function buildTimePicker(containerId, inputId, defaultHour=8, defaultMin='30') {
   container.appendChild(mSel);
 }
 
-<<<<<<< HEAD
-// ===================== مراحل =====================
-=======
->>>>>>> 9a05b88 (v1.06)
 function goToStep(n) {
   document.querySelectorAll('#formFlow .step').forEach(s => s.classList.remove('active'));
   const el = document.getElementById('step'+n);
@@ -1170,11 +1019,7 @@ async function loadTasks() {
     state.tasks = tasks || [];
     renderTasks(state.tasks);
   } catch(e) {
-<<<<<<< HEAD
-    container.innerHTML = `<p class="error-msg">خطا: ${e.message}</p>`;
-=======
     container.innerHTML = `<p class="error-msg">خطا: ${escapeHtml(e.message)}</p>`;
->>>>>>> 9a05b88 (v1.06)
   }
 }
 
@@ -1208,13 +1053,8 @@ function goToStep2() {
 
 async function submitRecord() {
   const start = document.getElementById('startTimeVal').value;
-<<<<<<< HEAD
-  const end   = document.getElementById('endTimeVal').value;
-  const desc  = document.getElementById('description').value.trim();
-=======
   const end = document.getElementById('endTimeVal').value;
   const desc = document.getElementById('description').value.trim();
->>>>>>> 9a05b88 (v1.06)
   if (!start||!end) { showToast('زمان شروع و پایان را انتخاب کنید', true); return; }
   const hours = calcHours(start, end);
   if (hours <= 0) { showToast('زمان پایان باید بعد از شروع باشد', true); return; }
@@ -1237,10 +1077,7 @@ async function submitRecord() {
     goToStep(3);
   } catch(e) {
     showToast('خطا: '+e.message, true);
-<<<<<<< HEAD
-=======
   } finally {
->>>>>>> 9a05b88 (v1.06)
     btn.disabled=false; btn.textContent='ثبت';
   }
 }
@@ -1287,11 +1124,7 @@ function renderTaskManagerList(tasks) {
     <div class="task-manager-row">
       <span>${escapeHtml(t.name)}</span>
       <div class="task-mini-actions">
-<<<<<<< HEAD
-        <button class="mini-btn" onclick="startEditTask(${t.id},'${t.name.replace(/'/g,"\\'")}')">ویرایش</button>
-=======
         <button class="mini-btn" onclick="startEditTask(${t.id},'${escapeAttr(t.name)}')">ویرایش</button>
->>>>>>> 9a05b88 (v1.06)
         <button class="mini-btn danger" onclick="deleteTask(${t.id})">حذف</button>
       </div>
     </div>
@@ -1385,15 +1218,6 @@ async function saveSalarySettings() {
   const rate = Number(document.getElementById('hourlyRateInput').value || 0);
   const coef = Number(document.getElementById('overtimeCoefInput').value || 1);
   if (rate < 0 || coef < 1) { showToast('مقادیر نامعتبر', true); return; }
-<<<<<<< HEAD
-  HOURLY_RATE = rate; OVERTIME_COEFFICIENT = coef;
-  localStorage.setItem('worksheet_hourly_rate', String(HOURLY_RATE));
-  localStorage.setItem('worksheet_overtime_coefficient', String(OVERTIME_COEFFICIENT));
-  document.getElementById('salaryCurrentRate').textContent = HOURLY_RATE.toLocaleString('en-US');
-  closeSalaryModal();
-  loadDashboard(); loadReports();
-  showToast('تنظیمات حقوق ذخیره شد');
-=======
   try {
     const { error } = await db.from('wt_users')
       .update({ hourly_rate: rate, overtime_coefficient: coef })
@@ -1410,7 +1234,6 @@ async function saveSalarySettings() {
   } catch(e) {
     showToast('خطا: '+e.message, true);
   }
->>>>>>> 9a05b88 (v1.06)
 }
 
 async function saveNewTask() {
@@ -1428,14 +1251,9 @@ async function saveNewTask() {
       if (cur) cur.name = name;
       showToast('وظیفه ویرایش شد');
     } else {
-<<<<<<< HEAD
-      const [created] = await supabaseReq('POST','tasks',{ user_id: USER_ID, name, active: true });
-      state.tasks.push(created);
-=======
       const { data, error } = await db.from('tasks').insert({ user_id: requireUserId(), name, active: true }).select('id,name').single();
       if (error) throw error;
       state.tasks.push(data);
->>>>>>> 9a05b88 (v1.06)
       showToast('وظیفه افزوده شد');
     }
     closeModal();
@@ -1451,11 +1269,7 @@ async function saveNewTask() {
   } catch(e) {
     showToast('خطا: '+e.message, true);
   } finally {
-<<<<<<< HEAD
-    btn.disabled=false; btn.textContent=isEditing?'ذخیره تغییرات':'افزودن وظیفه';
-=======
     btn.disabled=false; btn.textContent=isEditing?'ذذیره تغییرات':'افزودن وظیفه';
->>>>>>> 9a05b88 (v1.06)
   }
 }
 
@@ -1471,22 +1285,14 @@ function closeConfirmModal() {
 }
 
 async function deleteTask(id) {
-<<<<<<< HEAD
-  askConfirm('این وظیفه حذف شود؟', async () => {
-=======
   askConfirm('این وظیفه غیرفعال شود؟', async () => {
->>>>>>> 9a05b88 (v1.06)
     try {
       const { error } = await db.from('tasks').update({ active: false }).eq('id', id);
       if (error) throw error;
       state.tasks = state.tasks.filter(t => t.id !== id);
       renderTaskManagerList(state.tasks);
       if (document.getElementById('taskContainer')) renderTasks(state.tasks);
-<<<<<<< HEAD
-      showToast('وظیفه حذف شد');
-=======
       showToast('وظیفه غیرفعال شد');
->>>>>>> 9a05b88 (v1.06)
     } catch(e) { showToast('خطا: '+e.message, true); }
     finally { closeConfirmModal(); }
   });
@@ -1494,12 +1300,6 @@ async function deleteTask(id) {
 
 async function openRecordEditor(id) {
   try {
-<<<<<<< HEAD
-    const records = await supabaseReq('GET','work_records',null,`?user_id=eq.${USER_ID}&select=*,task_id&order=date.desc`);
-    const tasks = await supabaseReq('GET','tasks',null,`?user_id=eq.${USER_ID}&active=eq.true&select=id,name`);
-    const record = records.find(r => r.id === id);
-    if (!record) throw new Error('رکورد یافت نشد');
-=======
     const record = reportRecordsCache.find(r => Number(r.id) === Number(id));
     if (!record) throw new Error('رکورد یافت نشد');
     if (!isCurrentUserAdmin() && !isOwnRecord(record)) {
@@ -1510,7 +1310,6 @@ async function openRecordEditor(id) {
     const { data: tasks, error } = await db
       .from('tasks').select('id,name').eq('user_id', taskOwnerId).eq('active', true).order('id', { ascending: true });
     if (error) throw error;
->>>>>>> 9a05b88 (v1.06)
 
     state.editingRecordId = id;
     document.getElementById('recordDateInput').value = record.work_date || '';
@@ -1518,11 +1317,7 @@ async function openRecordEditor(id) {
     document.getElementById('recordEndInput').value = String(record.end_time || '17:00').slice(0,5);
     document.getElementById('recordDescInput').value = record.description || '';
     const taskSelect = document.getElementById('recordTaskSelect');
-<<<<<<< HEAD
-    taskSelect.innerHTML = '<option value="">بدون وظیفه</option>' + tasks.map(t => `<option value="${t.id}" ${String(t.id)===String(record.task_id)?'selected':''}>${t.name}</option>`).join('');
-=======
     taskSelect.innerHTML = '<option value="">بدون وظیفه</option>' + (tasks||[]).map(t => `<option value="${t.id}" ${String(t.id)===String(record.task_id)?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
->>>>>>> 9a05b88 (v1.06)
     document.getElementById('recordModal').classList.add('open');
   } catch(e) { showToast('خطا: '+e.message, true); }
 }
@@ -1537,10 +1332,6 @@ async function saveRecordEdit() {
   const hours = calcHours(start, end);
   if (hours <= 0) { showToast('زمان پایان باید بعد از شروع باشد', true); return; }
   try {
-<<<<<<< HEAD
-    await supabaseReq('PATCH','work_records',{ date, start_time: start, end_time: end, hours, description: desc, task_id: taskId }, `?id=eq.${state.editingRecordId}`);
-    closeRecordModal(); loadReports(); loadDashboard();
-=======
     let q = db.from('work_records')
       .update({ work_date: date, start_time: start, end_time: end, hours, description: desc, task_id: taskId })
       .eq('id', state.editingRecordId);
@@ -1548,7 +1339,6 @@ async function saveRecordEdit() {
     const { error } = await q;
     if (error) throw error;
     closeRecordModal(); await loadReports(); await loadDashboard();
->>>>>>> 9a05b88 (v1.06)
     showToast('رکورد ویرایش شد');
   } catch(e) { showToast('خطا: '+e.message, true); }
 }
@@ -1738,10 +1528,6 @@ document.addEventListener('keydown', e => {
   }
 });
 
-<<<<<<< HEAD
-// ===================== توست =====================
-=======
->>>>>>> 9a05b88 (v1.06)
 function showToast(msg, isError=false) {
   const t = document.getElementById('toast');
   if (!t) return;
@@ -1750,29 +1536,9 @@ function showToast(msg, isError=false) {
   setTimeout(()=>{ t.className='toast'+(isError?' error':''); }, 3000);
 }
 
-<<<<<<< HEAD
-// ===================== راه‌اندازی =====================
-function initReportPage() {
-  loadReports();
-  document.getElementById('yearFilter')?.addEventListener('change', () => { updateDayOptions(); loadReports(); });
-  document.getElementById('monthFilter')?.addEventListener('change', () => { updateDayOptions(); loadReports(); });
-  document.getElementById('taskFilter')?.addEventListener('change', loadReports);
-  document.getElementById('dayFilter')?.addEventListener('change', loadReports);
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  if (sessionStorage.getItem(SESSION_KEY) === '1') {
-    document.getElementById('passwordGate').style.display = 'none';
-    document.getElementById('appRoot').style.display = 'block';
-    loadDashboard();
-    if (document.getElementById('reportBody')) initReportPage();
-  } else {
-    setTimeout(() => document.getElementById('passwordInput')?.focus(), 100);
-=======
 window.addEventListener('storage', e => {
   if (e.key === SESSION_KEY || e.key === SESSION_SYNC_KEY || e.key === LEGACY_SESSION_KEY) {
     syncCurrentUserFromStorage();
->>>>>>> 9a05b88 (v1.06)
   }
 });
 
