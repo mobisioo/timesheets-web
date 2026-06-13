@@ -157,7 +157,7 @@ function handleSessionExpired() {
   const root = document.getElementById('appRoot');
   if (root) root.style.display = 'none';
   if (gate) gate.style.display = 'flex';
-  setGateError('جلسه شما بعد از ۱۵ دقیقه منقضی شد. دوباره وارد شوید.');
+  setGateError('ورود شما منقضی شد. دوباره وارد شوید.');
   setTimeout(() => document.getElementById('loginInput')?.focus(), 100);
 }
 
@@ -1604,7 +1604,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (sessionExpiredOnLoad || expiredFlag === '1') {
-    setGateError('جلسه شما بعد از ۱۵ دقیقه منقضی شد. دوباره وارد شوید.');
+    setGateError('ورود شما منقضی شد. دوباره وارد شوید.');
   }
   const gate = document.getElementById('passwordGate');
   if (gate) gate.style.display = 'flex';
