@@ -486,7 +486,20 @@ textarea { resize: none; height: 80px; font-size: 13px; cursor: text; direction:
   padding: 10px 12px;
 }
 .task-manager-row span { color: var(--text); font-size: 13px; }
-.task-mini-actions, .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.task-mini-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.table-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
 .mini-btn {
   border: 1px solid var(--border); background: transparent; color: var(--muted2);
   border-radius: 6px; padding: 5px 8px; font-size: 11px; cursor: pointer; font-family: var(--font);
@@ -677,6 +690,7 @@ input[type="number"], input[type="time"] { direction: ltr; text-align: center; }
   border-bottom: 1px solid var(--border);
   padding-bottom: 16px;
   margin-bottom: 18px;
+
 }
 .report-title { font-size: 19px; font-weight: 700; }
 .report-eyebrow { color: var(--accent); font-weight: 600; }
@@ -1834,8 +1848,9 @@ body {
   }
   .mini-btn {
     flex: 1 1 auto;
-    min-width: 64px;
+    min-width: auto;
     padding: 9px 10px;
+    max-height: 3px;
   }
 }
 
