@@ -6,7 +6,7 @@
 <title>ثبت کار</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="page-home">
 
 <!-- ===== AUTH GATE ===== -->
 <div id="passwordGate" class="gate-overlay">
@@ -16,14 +16,19 @@
     <p class="gate-sub">برای ادامه با حساب کاربری وارد شوید.</p>
     <div class="gate-login-grid">
       <div class="gate-fields">
-        <input type="text" id="loginInput" placeholder="نام کاربری" autocomplete="username" style="direction:ltr;text-align:center">
-        <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
+        <label class="floating-field" for="loginInput">
+          <input type="text" id="loginInput" placeholder=" " autocomplete="username" style="text-align: center;">
+          <span>نام کاربری</span>
+        </label>
+        <label class="floating-field" for="passwordInput">
+          <input type="password" id="passwordInput" placeholder=" " autocomplete="current-password" style="text-align: center;">
+          <span>رمز عبور</span>
+        </label>
       </div>
-      <button class="gate-submit-btn" onclick="checkPassword()" id="gateBtn" type="button" aria-label="ورود">→</button>
-      
+      <button class="gate-submit-btn" onclick="checkPassword()" id="gateBtn" type="button">ورود</button>
     </div>
     <p class="gate-error" id="gateError"></p>
-    <button class="btn btn-primary signup-entry-btn" type="button" onclick="openSignupModal()">ثبت‌نام</button>
+    <button class="signup-entry-btn" type="button" onclick="openSignupModal()">حساب نداری؟ ثبت‌نام</button>
   </div>
 </div>
 
@@ -32,13 +37,13 @@
   <div class="modal">
     <h3>ثبت‌نام کاربر جدید</h3>
     <label for="signupUsername">نام کاربری</label>
-    <input type="text" id="signupUsername" placeholder="نام کاربری" autocomplete="username" style="direction:ltr;text-align:right">
+    <input type="text" id="signupUsername" placeholder="نام کاربری" autocomplete="username">
     <label for="signupFullName">نام نمایشی</label>
-    <input type="text" id="signupFullName" placeholder="نام و نام خانوادگی" style="direction:ltr;text-align:right">
+    <input type="text" id="signupFullName" placeholder="نام و نام خانوادگی">
     <label for="signupPassword">رمز عبور</label>
-    <input type="password" id="signupPassword" placeholder="رمز عبور" autocomplete="new-password" style="direction:ltr;text-align:right">
+    <input type="password" id="signupPassword" placeholder="رمز عبور" autocomplete="new-password" style="text-align: right;">
     <label for="signupPassword2">تکرار رمز عبور</label>
-    <input type="password" id="signupPassword2" placeholder="تکرار رمز عبور" autocomplete="new-password" style="direction:ltr;text-align:right">
+    <input type="password" id="signupPassword2" placeholder="تکرار رمز عبور" autocomplete="new-password" style="text-align: right;">
     <p class="gate-error" id="signupError"></p>
     <div class="modal-actions">
       <button class="btn btn-primary" id="btnSignup" type="button" onclick="registerUser()">ثبت‌نام</button>
@@ -60,27 +65,36 @@
     <div class="dashboard">
       <div class="dash-card">
         <div class="dash-label">کل ساعت کار</div>
-        <div class="dash-value" id="dashTotal"><span class="spinner-sm"></span></div>
+        <div class="dash-value" id="dashTotal"><span class="skeleton skeleton-text"></span></div>
+        <div class="dash-progress-track dash-progress-spacer" aria-hidden="true"></div>
+        <small class="dash-progress-meta" aria-hidden="true">&nbsp;</small>
       </div>
       <div class="dash-card">
         <div class="dash-label">ماه جاری</div>
-        <div class="dash-value" id="dashMonth"><span class="spinner-sm"></span></div>
+        <div class="dash-value" id="dashMonth"><span class="skeleton skeleton-text"></span></div>
+        <div class="dash-progress-track" aria-label="پیشرفت ماهانه">
+          <div class="dash-progress-fill" id="dashMonthProgress"></div>
+        </div>
+        <small class="dash-progress-meta" id="dashMonthProgressLabel">&nbsp;</small>
       </div>
       <div class="dash-card accent-card">
         <div class="dash-label">دستمزد</div>
-        <div class="dash-value" id="dashSalary"> <span class="spinner-sm"></span></div>
+        <div class="dash-value" id="dashSalary"><span class="skeleton skeleton-text skeleton-wide"></span></div>
+        <div class="dash-progress-track dash-progress-spacer" aria-hidden="true"></div>
+        <small class="dash-progress-meta" aria-hidden="true">&nbsp;</small>
       </div>
     </div>
     <div id="dashError" class="error-msg" style="display:none;text-align:center;padding:8px 0"></div>
     <div class="quick-actions">
       <button class="btn btn-primary btn-big" onclick="startLog()">+ ثبت ساعت کاری</button>
+      <button class="btn btn-ghost" id="adminNavBtn" style="display:none" onclick="navigateTo('admin.html')">پنل ادمین</button>
       <div class="action-row">
-        <button class="btn btn-ghost btn-action" onclick="openTaskManagerModal()">تسک ها</button>
-        <button class="btn btn-ghost btn-action" onclick="openSalaryModal()">دستمزد</button>
-        <button class="btn btn-ghost btn-action" onclick="window.location.href='report.html'">گزارش</button>
+        <button class="btn btn-ghost btn-action" onclick="openAppSettingsModal()">تنظیمات</button>
+        <button class="btn btn-ghost btn-action" onclick="navigateTo('report.html')">گزارش</button>
+        <button class="btn btn-logout btn-action" onclick="logout()">خروج</button>
       </div>
-      <button class="btn btn-ghost" id="adminNavBtn" style="display:none" onclick="window.location.href='admin.html'">پنل ادمین</button>
-      <button class="btn btn-ghost" onclick="logout()">خروج</button>
+      
+      
     </div>
   </div>
 
@@ -120,13 +134,25 @@
       <button class="btn btn-ghost" onclick="backToHome()">برگشت</button>
     </div>
 
-    <!-- Step 1: Task -->
+    <!-- Step 1: Project + Task -->
     <div class="step" id="step1">
       <div class="step-label">2 از 3</div>
-      <div class="step-title">چه کاری انجام دادی؟</div>
-      <div id="taskContainer">
-        <div class="loading"><div class="spinner"></div> Loading...</div>
+      <div class="step-title">پروژه و وظیفه</div>
+
+      <div class="selection-section">
+        <div class="selection-heading">اول پروژه را انتخاب کن</div>
+        <div id="projectContainer">
+          <div class="loading"><div class="spinner"></div> در حال بارگذاری...</div>
+        </div>
       </div>
+
+      <div class="selection-section">
+        <div class="selection-heading">بعد وظیفه را انتخاب کن</div>
+        <div id="taskContainer">
+          <p class="muted-text" style="font-size:12px;text-align:center;padding:16px 0">ابتدا یک پروژه انتخاب کن.</p>
+        </div>
+      </div>
+
       <button class="btn btn-primary" id="btnTask" onclick="goToStep2()" disabled>ادامه</button>
       <button class="btn btn-ghost" onclick="goToStep(0)">برگشت</button>
     </div>
@@ -172,16 +198,66 @@
   </div>
 </div>
 
-<!-- Task Modal -->
+<!-- Settings Modal -->
 <div class="modal-backdrop" id="taskModal">
-  <div class="modal">
-    <h3 id="taskModalTitle">مدیریت وظایف</h3>
-    <div id="taskManagerList" class="task-manager-list"></div>
-    <input type="text" id="newTaskInput" placeholder="نام پروژه یا وظیفه...">
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="btnSaveTask" onclick="saveNewTask()">افزودن وظیفه</button>
-      <button class="btn btn-ghost" onclick="closeModal()">لغو</button>
+  <div class="modal settings-modal">
+    <h3 id="taskModalTitle">تنظیمات</h3>
+
+    <div class="settings-tabs" role="tablist" aria-label="بخش‌های تنظیمات">
+      <button class="settings-tab active" id="settingsTabBtnProfile" type="button" role="tab" aria-selected="true" onclick="switchSettingsTab('profile')">پروفایل</button>
+      <button class="settings-tab" id="settingsTabBtnProjects" type="button" role="tab" aria-selected="false" onclick="switchSettingsTab('projects')">پروژه‌ها</button>
+      <button class="settings-tab" id="settingsTabBtnTasks" type="button" role="tab" aria-selected="false" onclick="switchSettingsTab('tasks')">وظایف</button>
+      <button class="settings-tab" id="settingsTabBtnSalary" type="button" role="tab" aria-selected="false" onclick="switchSettingsTab('salary')">دستمزد</button>
     </div>
+
+    <section class="settings-panel active" id="settingsPanelProfile" role="tabpanel">
+      <div class="report-eyebrow">پروفایل</div>
+      <label for="settingsFullNameInput">نام نمایشی</label>
+      <input type="text" id="settingsFullNameInput" placeholder="نام و نام خانوادگی">
+      <label for="settingsTelegramInput">یوزرنیم تلگرام</label>
+      <input type="text" id="settingsTelegramInput" placeholder="مثلاً username بدون @">
+      <p class="muted-text" id="telegramLinkStatus"></p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btnSaveUserSettings" onclick="saveUserSettings()">ذخیره پروفایل</button>
+      </div>
+    </section>
+
+    <section class="settings-panel" id="settingsPanelProjects" role="tabpanel" hidden>
+      <div class="report-eyebrow">پروژه‌ها</div>
+      <div id="projectManagerList" class="task-manager-list"></div>
+      <label for="newProjectInput">نام پروژه</label>
+      <input type="text" id="newProjectInput" placeholder="مثلاً BI (business intelligence)">
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btnSaveProject" onclick="saveProject()">افزودن پروژه</button>
+      </div>
+    </section>
+
+    <section class="settings-panel" id="settingsPanelTasks" role="tabpanel" hidden>
+      <div class="report-eyebrow">وظایف</div>
+      <div id="taskManagerList" class="task-manager-list"></div>
+      <label for="taskProjectSelect">پروژه</label>
+      <div class="select-wrap">
+        <select id="taskProjectSelect"></select>
+      </div>
+      <label for="newTaskInput">نام وظیفه</label>
+      <input type="text" id="newTaskInput" placeholder="مثلاً طراحی داشبورد">
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btnSaveTask" onclick="saveNewTask()">افزودن وظیفه</button>
+      </div>
+    </section>
+
+    <section class="settings-panel" id="settingsPanelSalary" role="tabpanel" hidden>
+      <div class="report-eyebrow">دستمزد</div>
+      <p class="muted-text">نرخ فعلی: <strong id="salaryCurrentRate">۰</strong> تومان/ساعت</p>
+      <label for="hourlyRateInput">نرخ ساعتی (تومان)</label>
+      <input type="number" id="hourlyRateInput" min="0" step="1000" placeholder="150000">
+      <label for="overtimeCoefInput">ضریب اضافه کار</label>
+      <input type="number" id="overtimeCoefInput" min="1" step="0.1" placeholder="1.5">
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btnSaveSalary" onclick="saveSalarySettings()">ذخیره دستمزد</button>
+        <button class="btn btn-ghost" onclick="closeModal()">بستن</button>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -192,21 +268,6 @@
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="confirmYes()">تأیید</button>
       <button class="btn btn-ghost" onclick="confirmNo()">لغو</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-backdrop" id="salaryModal">
-  <div class="modal">
-    <h3>تنظیمات دستمزد</h3>
-    <p class="muted-text">نرخ فعلی: <strong id="salaryCurrentRate">0</strong> تومان/ساعت</p>
-    <label for="hourlyRateInput">نرخ ساعتی (تومان)</label>
-    <input type="number" id="hourlyRateInput" min="0" step="1000" placeholder="150000">
-    <label for="overtimeCoefInput">ضریب اضافه کار</label>
-    <input type="number" id="overtimeCoefInput" min="1" step="0.1" placeholder="1.5">
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="btnSaveSalary" onclick="saveSalarySettings()">ثبت</button>
-      <button class="btn btn-ghost" onclick="closeSalaryModal()">لغو</button>
     </div>
   </div>
 </div>

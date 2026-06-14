@@ -10,9 +10,18 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, 
   auth: { persistSession: false }
 });
 
-const HOLIDAY_DATES = new Set([
-  '1405-01-01','1405-01-02','1405-01-03','1405-01-04','1405-01-13'
-]);
+const HOLIDAY_DATES_BY_YEAR = {
+  1405: [
+    '1405-01-01','1405-01-02','1405-01-03','1405-01-04','1405-01-13'
+  ]
+};
+
+function getConfiguredHolidayDates(jy) {
+  const year = String(jy);
+  const localDates = HOLIDAY_DATES_BY_YEAR[year] || HOLIDAY_DATES_BY_YEAR[Number(jy)] || [];
+  const override = window.WT_HOLIDAY_DATES_BY_YEAR?.[year] || window.WT_HOLIDAY_DATES_BY_YEAR?.[Number(jy)] || [];
+  return new Set([...localDates, ...override]);
+}
 
 const JALALI_MONTHS = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
 
@@ -21,8 +30,219 @@ let HOURLY_RATE = DEFAULT_HOURLY_RATE;
 let OVERTIME_COEFFICIENT = DEFAULT_OVERTIME_COEFFICIENT;
 let reportRecordsCache = [];
 let adminUsersCache = [];
-let state = { date: '', taskId: undefined, taskName: '', tasks: [], editingTaskId: null, editingRecordId: null };
+let state = { date: '', projectId: undefined, projectName: '', taskId: undefined, taskName: '', taskProjectName: '', projects: [], tasks: [], editingProjectId: null, editingTaskId: null, editingRecordId: null, editingAdminUserId: null, passwordAdminUserId: null };
 let confirmState = { open: false, message: '', onConfirm: null };
+
+let stepTransitionTimer = null;
+let highlightedRecordId = null;
+let dashboardLoadSeq = 0;
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const PERSIAN_DIGITS = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+const ARABIC_DIGITS = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+
+function toPersianDigits(value) {
+  return String(value ?? '').replace(/[0-9٠-٩]/g, ch => {
+    const arabicIndex = ARABIC_DIGITS.indexOf(ch);
+    return arabicIndex >= 0 ? PERSIAN_DIGITS[arabicIndex] : PERSIAN_DIGITS[Number(ch)];
+  });
+}
+
+function toEnglishDigits(value) {
+  return String(value ?? '')
+    .replace(/[۰-۹]/g, ch => String(PERSIAN_DIGITS.indexOf(ch)))
+    .replace(/[٠-٩]/g, ch => String(ARABIC_DIGITS.indexOf(ch)));
+}
+
+function shouldLocalizeNode(node) {
+  const parent = node?.parentElement;
+  if (!parent) return false;
+  return !parent.closest('script, style, template, textarea, noscript');
+}
+
+function localizeVisibleNumbers(root=document.body) {
+  if (!root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!shouldLocalizeNode(node)) return NodeFilter.FILTER_REJECT;
+      return /[0-9٠-٩]/.test(node.nodeValue || '') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach(node => { node.nodeValue = toPersianDigits(node.nodeValue); });
+
+  root.querySelectorAll?.('[placeholder], [title], [aria-label]').forEach(el => {
+    ['placeholder','title','aria-label'].forEach(attr => {
+      const value = el.getAttribute(attr);
+      if (value && /[0-9٠-٩]/.test(value)) el.setAttribute(attr, toPersianDigits(value));
+    });
+  });
+  if (document.title && /[0-9٠-٩]/.test(document.title)) document.title = toPersianDigits(document.title);
+}
+
+function startPersianDigitObserver() {
+  localizeVisibleNumbers(document.body);
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (shouldLocalizeNode(node) && /[0-9٠-٩]/.test(node.nodeValue || '')) node.nodeValue = toPersianDigits(node.nodeValue);
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          localizeVisibleNumbers(node);
+        }
+      });
+      if (mutation.type === 'characterData') {
+        const node = mutation.target;
+        if (shouldLocalizeNode(node) && /[0-9٠-٩]/.test(node.nodeValue || '')) node.nodeValue = toPersianDigits(node.nodeValue);
+      }
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  return observer;
+}
+
+function navigateTo(url) {
+  if (!url) return;
+  if (prefersReducedMotion()) {
+    window.location.href = url;
+    return;
+  }
+  document.body.classList.add('page-exit');
+  setTimeout(() => { window.location.href = url; }, 150);
+}
+
+function openAnimatedModal(idOrElement) {
+  const modal = typeof idOrElement === 'string' ? document.getElementById(idOrElement) : idOrElement;
+  if (!modal) return;
+  modal.classList.remove('closing');
+  modal.classList.add('open');
+}
+
+function closeAnimatedModal(idOrElement) {
+  const modal = typeof idOrElement === 'string' ? document.getElementById(idOrElement) : idOrElement;
+  if (!modal || !modal.classList.contains('open')) return;
+  if (prefersReducedMotion()) {
+    modal.classList.remove('open', 'closing');
+    return;
+  }
+  modal.classList.add('closing');
+  setTimeout(() => modal.classList.remove('open', 'closing'), 160);
+}
+
+function shakeFields(...ids) {
+  ids.flat().forEach(id => {
+    const el = typeof id === 'string' ? document.getElementById(id) : id;
+    if (!el) return;
+    el.classList.remove('field-shake');
+    void el.offsetWidth;
+    el.classList.add('field-shake');
+    setTimeout(() => el.classList.remove('field-shake'), 420);
+  });
+}
+
+function animateNumber(el, finalValue, formatter, duration=600, loadSeq=null) {
+  if (!el) return;
+  const isStale = () => loadSeq !== null && loadSeq !== dashboardLoadSeq;
+  if (isStale()) return;
+
+  const to = Number(finalValue || 0);
+  const from = Number(el.dataset.countValue || 0);
+  const safeFormatter = typeof formatter === 'function' ? formatter : (v => String(Math.round(v)));
+  delete el.dataset.staticValue;
+
+  if (prefersReducedMotion() || !Number.isFinite(to)) {
+    if (isStale()) return;
+    el.textContent = safeFormatter(to);
+    el.dataset.countValue = String(to);
+    el.dataset.loadedValue = '1';
+    return;
+  }
+
+  const startedAt = performance.now();
+  const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+  const tick = now => {
+    if (isStale()) return;
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const value = from + (to - from) * easeOutCubic(progress);
+    el.textContent = safeFormatter(value);
+    if (progress < 1) requestAnimationFrame(tick);
+    else {
+      el.textContent = safeFormatter(to);
+      el.dataset.countValue = String(to);
+      el.dataset.loadedValue = '1';
+    }
+  };
+  requestAnimationFrame(tick);
+}
+
+function markDashboardStaticValue(el, text) {
+  if (!el) return;
+  el.textContent = text;
+  delete el.dataset.countValue;
+  el.dataset.staticValue = '1';
+  el.dataset.loadedValue = '1';
+}
+
+function clearDashboardLoadState(...elements) {
+  elements.forEach(el => {
+    if (!el) return;
+    delete el.dataset.loadedValue;
+    delete el.dataset.staticValue;
+    delete el.dataset.countValue;
+  });
+}
+
+function showDashboardSkeleton(loadSeq, delay=350) {
+  const ids = ['dashTotal', 'dashMonth', 'dashSalary'];
+  const timers = ids.map(id => setTimeout(() => {
+    if (loadSeq !== dashboardLoadSeq) return;
+    const target = document.getElementById(id);
+    if (!target || target.dataset.loadedValue || target.dataset.staticValue || target.textContent.trim()) return;
+    const wide = id === 'dashSalary' ? ' skeleton-wide' : '';
+    target.innerHTML = `<span class="skeleton skeleton-text${wide}"></span>`;
+  }, delay));
+  return () => timers.forEach(clearTimeout);
+}
+
+function renderSkeletonRows(count=4, cols=8) {
+  return Array.from({ length: count }, () => `
+    <tr class="skeleton-row">
+      ${Array.from({ length: cols }, () => '<td><span class="skeleton"></span></td>').join('')}
+    </tr>
+  `).join('');
+}
+
+function updateMonthlyProgress(monthHours, thresholdHours, loadSeq=null) {
+  const bar = document.getElementById('dashMonthProgress');
+  const label = document.getElementById('dashMonthProgressLabel');
+  if (!bar) return;
+  const threshold = Number(thresholdHours || 0);
+  const ratio = threshold > 0 ? Math.min(Number(monthHours || 0) / threshold, 1) : 0;
+  const percent = Math.round(ratio * 100);
+  bar.classList.toggle('near-cap', ratio >= 0.85);
+  requestAnimationFrame(() => {
+    if (loadSeq !== null && loadSeq !== dashboardLoadSeq) return;
+    bar.style.setProperty('--dash-progress', `${percent}%`);
+  });
+  if (label) label.textContent = threshold > 0 ? `${percent}% از سقف ماهانه` : 'سقف ماهانه نامشخص';
+}
+
+function pulseReportRow(recordId, className='row-highlight') {
+  const row = document.querySelector(`#reportBody tr[data-record-id="${CSS.escape(String(recordId))}"]`);
+  if (!row) return;
+  row.classList.remove(className);
+  void row.offsetWidth;
+  row.classList.add(className);
+  setTimeout(() => row.classList.remove(className), className === 'row-danger-pulse' ? 460 : 650);
+}
 
 // ===================== Session =====================
 const SESSION_DURATION_MS = 15 * 60 * 1000;
@@ -140,7 +360,7 @@ function scheduleSessionExpiry(expiresAt) {
 
 function redirectToLogin(expired=false) {
   if (expired) writeStorage(SESSION_EXPIRED_FLAG, '1');
-  window.location.href = 'index.html';
+  navigateTo('index.html');
 }
 
 function handleSessionExpired() {
@@ -172,9 +392,10 @@ async function checkPassword() {
   const password = passwordInput?.value || '';
   if (!login || !password) {
     setGateError('نام کاربری و رمز عبور را وارد کنید.');
+    shakeFields(!login ? 'loginInput' : null, !password ? 'passwordInput' : null);
     return;
   }
-  if (gateBtn) { gateBtn.disabled = true; gateBtn.textContent = '...'; }
+  if (gateBtn) { gateBtn.disabled = true; gateBtn.textContent = 'در حال ورود...'; }
   if (error) error.textContent = '';
 
   try {
@@ -200,7 +421,7 @@ async function checkPassword() {
     const card = document.querySelector('.gate-card');
     if (card) { card.style.animation = 'none'; void card.offsetHeight; card.style.animation = 'shake 0.4s ease'; }
   } finally {
-    if (gateBtn) { gateBtn.disabled = false; gateBtn.textContent = '→'; }
+    if (gateBtn) { gateBtn.disabled = false; gateBtn.textContent = 'ورود'; }
   }
 }
 
@@ -230,7 +451,7 @@ function formatTelegramUsername(value) {
 }
 
 function setupPasswordInputs() {
-  ['passwordInput', 'signupPassword', 'signupPassword2', 'newUserPassword'].forEach(id => {
+  ['passwordInput', 'signupPassword', 'signupPassword2', 'newUserPassword', 'adminPasswordInput', 'adminPasswordRepeatInput'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.removeAttribute('maxlength');
@@ -244,13 +465,13 @@ function openSignupModal() {
   const modal = document.getElementById('signupModal');
   const err = document.getElementById('signupError');
   if (err) err.textContent = '';
-  if (modal) { modal.style.zIndex = '1100'; modal.classList.add('open'); }
+  if (modal) { modal.style.zIndex = '1100'; openAnimatedModal(modal); }
   setTimeout(() => document.getElementById('signupUsername')?.focus(), 100);
 }
 
 function closeSignupModal() {
   const modal = document.getElementById('signupModal');
-  if (modal) modal.classList.remove('open');
+  if (modal) closeAnimatedModal(modal);
   ['signupUsername','signupFullName','signupPassword','signupPassword2','signupTelegramUsername'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -272,10 +493,10 @@ async function registerUser() {
   const telegramUsername = normalizeTelegramUsername(document.getElementById('signupTelegramUsername')?.value || '');
   const btn = document.getElementById('btnSignup');
 
-  if (!username || !password) { setSignupError('نام کاربری و رمز عبور الزامی است.'); return; }
-  if (!/^[a-zA-Z0-9_.-]{3,40}$/.test(username)) { setSignupError('نام کاربری باید ۳ تا ۴۰ کاراکتر انگلیسی، عدد، نقطه، خط تیره یا آندرلاین باشد.'); return; }
-  if (!isValidPassword(password)) { setSignupError('رمز عبور را وارد کنید.'); return; }
-  if (password !== password2) { setSignupError('تکرار رمز عبور درست نیست.'); return; }
+  if (!username || !password) { setSignupError('نام کاربری و رمز عبور الزامی است.'); shakeFields(!username ? 'signupUsername' : null, !password ? 'signupPassword' : null); return; }
+  if (!/^[a-zA-Z0-9_.-]{3,40}$/.test(username)) { setSignupError('نام کاربری باید ۳ تا ۴۰ کاراکتر انگلیسی، عدد، نقطه، خط تیره یا آندرلاین باشد.'); shakeFields('signupUsername'); return; }
+  if (!isValidPassword(password)) { setSignupError('رمز عبور را وارد کنید.'); shakeFields('signupPassword'); return; }
+  if (password !== password2) { setSignupError('تکرار رمز عبور درست نیست.'); shakeFields('signupPassword2'); return; }
   if (!isValidTelegramUsername(telegramUsername)) { setSignupError('یوزرنیم تلگرام معتبر نیست. فقط حروف انگلیسی، عدد یا _ وارد کن.'); return; }
 
   if (btn) { btn.disabled = true; btn.textContent = 'در حال ثبت‌نام...'; }
@@ -327,7 +548,7 @@ function logout() {
   reportRecordsCache = [];
   adminUsersCache = [];
   broadcastSessionChange('logout');
-  window.location.href = 'index.html';
+  navigateTo('index.html');
 }
 
 async function enterApp() {
@@ -338,7 +559,7 @@ async function enterApp() {
   const isAdminPage = Boolean(document.getElementById('adminUsersBody'));
   if (isAdminPage && !isCurrentUserAdmin()) {
     showToast('دسترسی به پنل ادمین مجاز نیست.', true);
-    setTimeout(() => { window.location.href = 'index.html'; }, 700);
+    setTimeout(() => { navigateTo('index.html'); }, 700);
     return;
   }
 
@@ -373,7 +594,7 @@ async function refreshPageForCurrentSession() {
   paintUserBadge();
 
   if (document.getElementById('adminUsersBody') && !isCurrentUserAdmin()) {
-    window.location.href = 'index.html';
+    navigateTo('index.html');
     return;
   }
 
@@ -414,7 +635,7 @@ function paintUserBadge() {
   const el = document.getElementById('currentUserBadge');
   if (!el || !currentUser) return;
   const name = currentUser.full_name || currentUser.username;
-  el.textContent = `${name} · ${isCurrentUserAdmin() ? 'ادمین' : 'یوزر'}`;
+  el.textContent = `${name} · ${isCurrentUserAdmin() ? 'ادمین' : 'کاربر'}`;
 }
 
 function requireUserId() {
@@ -492,7 +713,7 @@ function jalaliToGregorian(jy, jm, jd) {
 }
 
 function parseJalaliDate(value) {
-  const m = String(value || '').trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  const m = toEnglishDigits(String(value || '').trim()).match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
   if (!m) return null;
   return { jy: Number(m[1]), jm: Number(m[2]), jd: Number(m[3]) };
 }
@@ -533,12 +754,12 @@ function formatHours(h) {
   const safe = Number(h || 0);
   const hh = Math.floor(safe);
   const mm = Math.round((safe - hh) * 60);
-  if (mm === 0) return `${hh} ساعت `;
-  return `${hh}:${String(mm).padStart(2,'0')} ساعت `;
+  const value = mm === 0 ? `${hh} ساعت ` : `${hh}:${String(mm).padStart(2,'0')} ساعت `;
+  return toPersianDigits(value);
 }
 
 function formatMoney(amount) {
-  return Number(amount || 0).toLocaleString('en-US') + ' ت';
+  return toPersianDigits(Number(amount || 0).toLocaleString('en-US') + ' ت');
 }
 
 // ===================== داشبورد =====================
@@ -549,34 +770,68 @@ async function loadDashboard() {
   const dashError = document.getElementById('dashError');
   if (!dashTotal || !dashMonth || !dashSalary) return;
 
+  const progressBar = document.getElementById('dashMonthProgress');
+  const progressLabel = document.getElementById('dashMonthProgressLabel');
+  const loadSeq = ++dashboardLoadSeq;
+  if (dashError) { dashError.style.display = 'none'; dashError.textContent = ''; }
+  if (progressBar) progressBar.style.setProperty('--dash-progress', '0%');
+  if (progressLabel) progressLabel.innerHTML = '&nbsp;';
+  const cancelSkeleton = showDashboardSkeleton(loadSeq);
+
   try {
     let q = db.from('work_records').select('hours, work_date, user_id');
     if (!isCurrentUserAdmin()) q = q.eq('user_id', requireUserId());
     const { data: records, error } = await q;
+    cancelSkeleton();
+    if (loadSeq !== dashboardLoadSeq) return;
     if (error) throw error;
 
-    const totalHours = records.reduce((s, r) => s + (parseFloat(r.hours)||0), 0);
+    const safeRecords = records || [];
+    const totalHours = safeRecords.reduce((s, r) => s + (parseFloat(r.hours)||0), 0);
     const currentMonthStr = `${today.y}-${String(today.m).padStart(2,'0')}`;
-    const monthRecords = records.filter(r => r.work_date && r.work_date.startsWith(currentMonthStr));
+    const monthRecords = safeRecords.filter(r => r.work_date && r.work_date.startsWith(currentMonthStr));
     const monthHours = monthRecords.reduce((s, r) => s + (parseFloat(r.hours)||0), 0);
     const salaryInfo = calculateMonthlySalary(monthHours, today.y, today.m);
 
-    dashTotal.textContent = formatHours(totalHours);
-    dashMonth.textContent = formatHours(monthHours);
-    dashSalary.textContent = isCurrentUserAdmin() ? 'گزارش کلی' : formatMoney(salaryInfo.salary);
+    animateNumber(dashTotal, totalHours, formatHours, 600, loadSeq);
+    animateNumber(dashMonth, monthHours, formatHours, 600, loadSeq);
+    if (isCurrentUserAdmin()) {
+      markDashboardStaticValue(dashSalary, 'گزارش کلی');
+    } else {
+      animateNumber(dashSalary, salaryInfo.salary, formatMoney, 350, loadSeq);
+    }
+    updateMonthlyProgress(monthHours, salaryInfo.thresholdHours, loadSeq);
   } catch(e) {
+    cancelSkeleton();
+    if (loadSeq !== dashboardLoadSeq) return;
     dashTotal.textContent = '—';
     dashMonth.textContent = '—';
     dashSalary.textContent = '—';
+    clearDashboardLoadState(dashTotal, dashMonth, dashSalary);
     if (dashError) { dashError.style.display = 'block'; dashError.textContent = 'خطا در بارگذاری اطلاعات: ' + e.message; }
   }
 }
 
+function isJalaliWeekend(dateValue) {
+  const date = jalaliDateToGregorianDate(dateValue);
+  if (!date) return false;
+  const day = date.getUTCDay();
+  return day === 4 || day === 5; // پنجشنبه و جمعه
+}
+
 function getMonthlyWorkingThreshold(jy, jm) {
   const monthDays = jalaliMonthDays(jy, jm);
-  const weekendDays = Math.floor(monthDays / 7) * 2 + Math.min(2, monthDays % 7);
-  const holidayDays = Array.from({ length: monthDays }, (_, i) => `${jy}-${String(jm).padStart(2,'0')}-${String(i+1).padStart(2,'0')}`)
-    .filter(date => HOLIDAY_DATES.has(date)).length;
+  const holidayDates = getConfiguredHolidayDates(jy);
+  let weekendDays = 0;
+  let holidayDays = 0;
+
+  for (let day = 1; day <= monthDays; day += 1) {
+    const date = `${jy}-${String(jm).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isWeekend = isJalaliWeekend(date);
+    if (isWeekend) weekendDays += 1;
+    if (!isWeekend && holidayDates.has(date)) holidayDays += 1;
+  }
+
   const workingDays = Math.max(0, monthDays - weekendDays - holidayDays);
   return { monthDays, workingDays, thresholdHours: workingDays * STANDARD_DAILY_HOURS, holidayDays, weekendDays };
 }
@@ -614,32 +869,40 @@ async function loadReportUsersFilter() {
   wrap.style.display = 'flex';
   const { data, error } = await db.from('wt_users').select('id, username, full_name, role').eq('active', true).order('username');
   if (error) throw error;
-  select.innerHTML = '<option value="all">همه کاربران</option>' + data.map(u => `<option value="${u.id}">${escapeHtml(u.full_name || u.username)}</option>`).join('');
+  select.innerHTML = '<option value="all">همه کاربران</option>' + (data || []).map(u => `<option value="${u.id}">${escapeHtml(u.full_name || u.username)}</option>`).join('');
 }
 
 async function loadReports() {
   const reportBody = document.getElementById('reportBody');
   if (!reportBody) return;
-  reportBody.innerHTML = '<tr><td colspan="8" class="loading">در حال بارگذاری...</td></tr>';
+  reportBody.innerHTML = renderSkeletonRows(4, 8);
 
   try {
-    let q = db
-      .from('work_records')
-      .select('id, user_id, work_date, start_time, end_time, hours, description, task_id, tasks(id, name)')
-      .order('work_date', { ascending: false });
-
     const selectedUser = document.getElementById('userFilter')?.value || 'all';
     const currentUserId = requireUserId();
+    const reportSelectClauses = [
+      'id, user_id, work_date, start_time, end_time, hours, description, project_id, projects(id,name), task_id, tasks(id, name, project_id, project_name, projects(id,name))',
+      'id, user_id, work_date, start_time, end_time, hours, description, project_id, task_id, tasks(id, name, project_id, project_name)',
+      'id, user_id, work_date, start_time, end_time, hours, description, task_id, tasks(id, name, project_name)',
+      'id, user_id, work_date, start_time, end_time, hours, description, task_id, tasks(id, name)'
+    ];
 
-    // قانون اصلی گزارش:
-    // ادمین همه رکوردها را می‌بیند، کاربر عادی فقط رکوردهای خودش را.
-    if (!isCurrentUserAdmin()) {
-      q = q.eq('user_id', currentUserId);
-    } else if (selectedUser !== 'all') {
-      q = q.eq('user_id', selectedUser);
+    const runReportQuery = async (selectClause) => {
+      let q = db.from('work_records').select(selectClause).order('work_date', { ascending: false });
+      // قانون اصلی گزارش:
+      // ادمین همه رکوردها را می‌بیند، کاربر عادی فقط رکوردهای خودش را.
+      if (!isCurrentUserAdmin()) q = q.eq('user_id', currentUserId);
+      else if (selectedUser !== 'all') q = q.eq('user_id', selectedUser);
+      return q;
+    };
+
+    let data = null;
+    let error = null;
+    for (const selectClause of reportSelectClauses) {
+      ({ data, error } = await runReportQuery(selectClause));
+      if (!error) break;
+      if (!isMissingProjectFeatureError(error) && !isMissingProjectNameColumnError(error)) break;
     }
-
-    const { data, error } = await q;
     if (error) throw error;
 
     // گارد دوم سمت کلاینت: حتی اگر query اشتباهی تغییر کند، یوزر عادی فقط دیتای خودش را می‌بیند.
@@ -741,8 +1004,8 @@ function renderReportFromCache() {
     return;
   }
 
-  reportBody.innerHTML = rows.map(r => `
-    <tr>
+  reportBody.innerHTML = rows.map((r, i) => `
+    <tr data-record-id="${r.id}" class="row-enter ${String(highlightedRecordId) === String(r.id) ? 'row-highlight' : ''}" style="--row-i:${Math.min(i, 12)}">
       <td style="font-family:var(--font)">${escapeHtml(r.user)}</td>
       <td>${escapeHtml(r.date)}</td>
       <td style="font-family:var(--font)">${escapeHtml(r.task)}</td>
@@ -758,6 +1021,7 @@ function renderReportFromCache() {
       </td>
     </tr>
   `).join('');
+  highlightedRecordId = null;
 }
 
 function updateDayOptions() {
@@ -805,6 +1069,17 @@ function getRecordTaskName(record) {
   return record?.tasks?.name || record?.task_name || '';
 }
 
+function getRecordProjectName(record, fallbackProjectName=ODOO_DEFAULT_PROJECT_NAME) {
+  return String(
+    record?.projects?.name
+    || record?.tasks?.projects?.name
+    || record?.tasks?.project_name
+    || record?.project_name
+    || fallbackProjectName
+    || ODOO_DEFAULT_PROJECT_NAME
+  ).trim() || ODOO_DEFAULT_PROJECT_NAME;
+}
+
 function getOdooDecimalHours(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n)) return 0;
@@ -839,7 +1114,7 @@ function getOdooProjectNameFromTemplate(workbook) {
   return String(value || ODOO_DEFAULT_PROJECT_NAME).trim() || ODOO_DEFAULT_PROJECT_NAME;
 }
 
-function buildOdooWorksheet(records, projectName) {
+function buildOdooWorksheet(records, fallbackProjectName) {
   const XLSX = window.XLSX;
   const ws = {};
   const range = { s: { r: 0, c: 0 }, e: { r: Math.max(records.length - 1, 0), c: 4 } };
@@ -849,6 +1124,7 @@ function buildOdooWorksheet(records, projectName) {
     if (!gregorianDate) {
       throw new Error(`تاریخ ${record.work_date || 'نامشخص'} قابل تبدیل به میلادی نیست.`);
     }
+    const projectName = getRecordProjectName(record, fallbackProjectName);
 
     const values = [
       { t: 'd', v: gregorianDate, z: 'yyyy-mm-dd' },
@@ -986,10 +1262,32 @@ function buildTimePicker(containerId, inputId, defaultHour=8, defaultMin='30') {
 }
 
 function goToStep(n) {
-  document.querySelectorAll('#formFlow .step').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById('step'+n);
-  el.classList.add('active');
-  el.style.animation='none'; void el.offsetHeight; el.style.animation='';
+  const next = document.getElementById('step'+n);
+  if (!next) return;
+  const current = document.querySelector('#formFlow .step.active');
+  const currentIndex = current?.id?.startsWith('step') ? Number(current.id.replace('step','')) : n;
+  const isForward = n >= currentIndex;
+  const enterClass = isForward ? 'enter-forward' : 'enter-back';
+  const leaveClass = isForward ? 'leave-forward' : 'leave-back';
+
+  if (stepTransitionTimer) clearTimeout(stepTransitionTimer);
+  document.querySelectorAll('#formFlow .step').forEach(s => {
+    s.classList.remove('enter-forward','enter-back','leave-forward','leave-back','leaving');
+  });
+
+  if (!current || current === next || prefersReducedMotion()) {
+    document.querySelectorAll('#formFlow .step').forEach(s => s.classList.remove('active'));
+    next.classList.add('active');
+  } else {
+    current.classList.add('leaving', leaveClass);
+    next.classList.add('active', enterClass);
+    stepTransitionTimer = setTimeout(() => {
+      current.classList.remove('active','leaving',leaveClass);
+      next.classList.remove(enterClass);
+      stepTransitionTimer = null;
+    }, 260);
+  }
+
   for (let i=0;i<3;i++) {
     const dot = document.getElementById('dot'+i);
     if (!dot) continue;
@@ -1001,52 +1299,243 @@ function goToStep1() {
   const m = document.getElementById('month').value;
   const d = document.getElementById('day').value;
   state.date = `${today.y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  state.projectId = undefined;
+  state.projectName = '';
+  state.taskId = undefined;
+  state.taskName = '';
+  state.taskProjectName = '';
+  const btn = document.getElementById('btnTask');
+  if (btn) btn.disabled = true;
   goToStep(1);
-  loadTasks();
+  loadProjectTaskPicker();
+}
+
+function isMissingProjectNameColumnError(error) {
+  const message = String(error?.message || error?.details || '');
+  return message.includes('project_name') || error?.code === 'PGRST204';
+}
+
+function isMissingProjectFeatureError(error) {
+  const message = String(error?.message || error?.details || error?.hint || '');
+  return message.includes('project_id')
+    || message.includes('projects')
+    || message.includes("Could not find a relationship")
+    || error?.code === 'PGRST204';
+}
+
+function getTaskProjectId(task) {
+  return task?.project_id ?? task?.projects?.id ?? null;
+}
+
+function getTaskProjectName(task) {
+  return String(task?.projects?.name || task?.project_name || '').trim();
+}
+
+function normalizeTaskRecord(task, fallbackProjectName='') {
+  return {
+    ...task,
+    project_id: getTaskProjectId(task),
+    project_name: getTaskProjectName(task) || fallbackProjectName || ''
+  };
+}
+
+function getSelectedProjectNameById(projectId) {
+  const project = state.projects.find(p => String(p.id) === String(projectId));
+  return project?.name || '';
+}
+
+async function fetchActiveProjectsForUser(userId) {
+  const { data, error } = await db
+    .from('projects')
+    .select('id,name')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []).map(p => ({ id: p.id, name: p.name || '' })).filter(p => p.name);
+}
+
+async function insertProjectRecord(payload) {
+  const { data, error } = await db.from('projects').insert(payload).select('id,name').single();
+  if (error) throw error;
+  return data;
+}
+
+async function updateProjectRecord(id, payload) {
+  const { error } = await db.from('projects').update(payload).eq('id', id).eq('user_id', requireUserId());
+  if (error) throw error;
+}
+
+async function deactivateProjectRecord(id) {
+  const { error } = await db.from('projects').update({ active: false }).eq('id', id).eq('user_id', requireUserId());
+  if (error) throw error;
+  // وظایف زیرمجموعه پروژه هم غیرفعال شوند تا در فرم ثبت کار نمایش داده نشوند.
+  await db.from('tasks').update({ active: false }).eq('project_id', id).eq('user_id', requireUserId());
+}
+
+async function fetchActiveTasksForUser(userId, projectId=null) {
+  const buildQuery = (selectClause) => {
+    let q = db
+      .from('tasks')
+      .select(selectClause)
+      .eq('user_id', userId)
+      .eq('active', true)
+      .order('id', { ascending: true });
+    if (projectId !== null && projectId !== undefined && projectId !== '') q = q.eq('project_id', projectId);
+    return q;
+  };
+
+  let { data, error } = await buildQuery('id,name,project_id,project_name,projects(id,name)');
+  if (error && isMissingProjectFeatureError(error)) {
+    ({ data, error } = await buildQuery('id,name,project_name'));
+  }
+  if (error && isMissingProjectNameColumnError(error)) {
+    ({ data, error } = await buildQuery('id,name'));
+  }
+  if (error) throw error;
+  return (data || []).map(t => normalizeTaskRecord(t));
+}
+
+async function insertTaskRecord(payload) {
+  let { data, error } = await db
+    .from('tasks')
+    .insert(payload)
+    .select('id,name,project_id,project_name,projects(id,name)')
+    .single();
+  if (error && isMissingProjectFeatureError(error)) {
+    const { project_id, projects, ...fallbackPayload } = payload;
+    ({ data, error } = await db.from('tasks').insert(fallbackPayload).select('id,name,project_name').single());
+  }
+  if (error && isMissingProjectNameColumnError(error)) {
+    const { project_name, project_id, projects, ...fallbackPayload } = payload;
+    ({ data, error } = await db.from('tasks').insert(fallbackPayload).select('id,name').single());
+  }
+  if (error) throw error;
+  return normalizeTaskRecord(data, payload.project_name || getSelectedProjectNameById(payload.project_id));
+}
+
+async function updateTaskRecord(id, payload) {
+  let { error } = await db.from('tasks').update(payload).eq('id', id).eq('user_id', requireUserId());
+  if (error && isMissingProjectFeatureError(error)) {
+    const { project_id, projects, ...fallbackPayload } = payload;
+    ({ error } = await db.from('tasks').update(fallbackPayload).eq('id', id).eq('user_id', requireUserId()));
+  }
+  if (error && isMissingProjectNameColumnError(error)) {
+    const { project_name, project_id, projects, ...fallbackPayload } = payload;
+    ({ error } = await db.from('tasks').update(fallbackPayload).eq('id', id).eq('user_id', requireUserId()));
+  }
+  if (error) throw error;
+}
+
+async function loadProjectTaskPicker() {
+  const projectContainer = document.getElementById('projectContainer');
+  const taskContainer = document.getElementById('taskContainer');
+  if (projectContainer) projectContainer.innerHTML = '<div class="loading"><div class="spinner"></div> در حال بارگذاری...</div>';
+  if (taskContainer) taskContainer.innerHTML = '<p class="muted-text" style="font-size:12px;text-align:center;padding:16px 0">ابتدا یک پروژه انتخاب کن.</p>';
+  try {
+    const userId = requireUserId();
+    const [projects, tasks] = await Promise.all([
+      fetchActiveProjectsForUser(userId),
+      fetchActiveTasksForUser(userId)
+    ]);
+    state.projects = projects;
+    state.tasks = tasks;
+    renderProjects(projects);
+    if (!projects.length && taskContainer) {
+      taskContainer.innerHTML = '<p class="muted-text" style="font-size:12px;text-align:center;padding:16px 0">اول از تنظیمات یک پروژه بساز.</p>';
+    }
+  } catch(e) {
+    if (projectContainer) projectContainer.innerHTML = `<p class="error-msg">خطا: ${escapeHtml(e.message)}</p>`;
+    if (taskContainer) taskContainer.innerHTML = '<p class="muted-text" style="font-size:12px;text-align:center;padding:16px 0">برای پروژه‌ها فایل projects_migration.sql را اجرا کن.</p>';
+  }
 }
 
 async function loadTasks() {
-  const container = document.getElementById('taskContainer');
-  container.innerHTML = '<div class="loading"><div class="spinner"></div> در حال بارگذاری...</div>';
-  try {
-    const { data: tasks, error } = await db
-      .from('tasks')
-      .select('id,name')
-      .eq('user_id', requireUserId())
-      .eq('active', true)
-      .order('id', { ascending: true });
-    if (error) throw error;
-    state.tasks = tasks || [];
-    renderTasks(state.tasks);
-  } catch(e) {
-    container.innerHTML = `<p class="error-msg">خطا: ${escapeHtml(e.message)}</p>`;
+  return loadProjectTaskPicker();
+}
+
+function renderProjects(projects) {
+  const container = document.getElementById('projectContainer');
+  if (!container) return;
+  if (!projects.length) {
+    container.innerHTML = `
+      <div class="task-list">
+        <div class="no-task" onclick="openAppSettingsModal('projects')">
+          <span>+</span><span>اول یک پروژه اضافه کن</span>
+        </div>
+      </div>`;
+    return;
   }
+  let html = '<div class="task-list project-list">';
+  projects.forEach(p => {
+    html += `<div class="task-item project-item" id="project-${p.id}" onclick="selectProject(${escapeAttr(JSON.stringify(p.id))},${escapeAttr(JSON.stringify(p.name))})">
+      <span>${escapeHtml(p.name)}</span><div class="check"></div>
+    </div>`;
+  });
+  html += '</div>';
+  html += `<button class="btn-add-task" onclick="openAppSettingsModal('projects')">+ تنظیمات پروژه‌ها</button>`;
+  container.innerHTML = html;
+}
+
+function selectProject(id, name) {
+  document.querySelectorAll('.project-item').forEach(el => el.classList.remove('selected'));
+  const selected = document.getElementById('project-' + id);
+  if (selected) {
+    selected.classList.add('selected');
+    selected.classList.remove('tap-feedback');
+    void selected.offsetWidth;
+    selected.classList.add('tap-feedback');
+  }
+  state.projectId = id;
+  state.projectName = name || '';
+  state.taskId = undefined;
+  state.taskName = '';
+  state.taskProjectName = name || '';
+  const btn = document.getElementById('btnTask');
+  if (btn) btn.disabled = true;
+  const tasks = state.tasks.filter(t => String(getTaskProjectId(t)) === String(id));
+  renderTasks(tasks);
 }
 
 function renderTasks(tasks) {
   const container = document.getElementById('taskContainer');
+  if (!container) return;
+  if (state.projectId === undefined) {
+    container.innerHTML = '<p class="muted-text" style="font-size:12px;text-align:center;padding:16px 0">ابتدا یک پروژه انتخاب کن.</p>';
+    return;
+  }
   let html = '<div class="task-list">';
   tasks.forEach(t => {
-    html += `<div class="task-item" id="task-${t.id}" onclick="selectTask(${t.id},'${escapeAttr(t.name)}')">
+    html += `<div class="task-item" id="task-${t.id}" onclick="selectTask(${t.id},${escapeAttr(JSON.stringify(t.name))},${escapeAttr(JSON.stringify(getTaskProjectName(t) || state.projectName || ''))})">
       <span>${escapeHtml(t.name)}</span><div class="check"></div>
     </div>`;
   });
-  html += `<div class="no-task" id="task-null" onclick="selectTask(null,'بدون وظیفه')">
+  html += `<div class="no-task" id="task-null" onclick="selectTask(null,'بدون وظیفه',${escapeAttr(JSON.stringify(state.projectName || ''))})">
     <span>—</span><span>بدون وظیفه مشخص</span>
   </div>`;
   html += '</div>';
-  html += `<button class="btn-add-task" onclick="openTaskManagerModal()">+ مدیریت وظایف</button>`;
+  html += `<button class="btn-add-task" onclick="openAppSettingsModal('tasks')">+ تنظیمات وظایف</button>`;
   container.innerHTML = html;
 }
 
-function selectTask(id, name) {
-  document.querySelectorAll('.task-item,.no-task').forEach(el => el.classList.remove('selected'));
-  document.getElementById('task-'+id)?.classList.add('selected');
-  state.taskId = id; state.taskName = name;
-  document.getElementById('btnTask').disabled = false;
+function selectTask(id, name, projectName='') {
+  document.querySelectorAll('#taskContainer .task-item,#taskContainer .no-task').forEach(el => el.classList.remove('selected'));
+  const selected = document.getElementById('task-'+id);
+  if (selected) {
+    selected.classList.add('selected');
+    selected.classList.remove('tap-feedback');
+    void selected.offsetWidth;
+    selected.classList.add('tap-feedback');
+  }
+  state.taskId = id;
+  state.taskName = name;
+  state.taskProjectName = projectName || state.projectName || '';
+  const btn = document.getElementById('btnTask');
+  if (btn) btn.disabled = false;
 }
 
 function goToStep2() {
+  if (state.projectId === undefined) { showToast('ابتدا یک پروژه انتخاب کنید', true); return; }
   if (state.taskId === undefined) { showToast('ابتدا یک وظیفه انتخاب کنید', true); return; }
   goToStep(2);
 }
@@ -1055,25 +1544,33 @@ async function submitRecord() {
   const start = document.getElementById('startTimeVal').value;
   const end = document.getElementById('endTimeVal').value;
   const desc = document.getElementById('description').value.trim();
+  if (state.projectId === undefined) { showToast('ابتدا یک پروژه انتخاب کنید', true); return; }
+  if (state.taskId === undefined) { showToast('ابتدا یک وظیفه انتخاب کنید', true); return; }
   if (!start||!end) { showToast('زمان شروع و پایان را انتخاب کنید', true); return; }
   const hours = calcHours(start, end);
   if (hours <= 0) { showToast('زمان پایان باید بعد از شروع باشد', true); return; }
 
   const btn = document.getElementById('btnSubmit');
   btn.disabled = true; btn.textContent = 'در حال ذخیره...';
+  const payload = {
+    user_id: requireUserId(),
+    work_date: state.date,
+    start_time: start,
+    end_time: end,
+    hours,
+    description: desc,
+    project_id: state.projectId || null,
+    task_id: state.taskId || null
+  };
   try {
-    const { error } = await db.from('work_records').insert({
-      user_id: requireUserId(),
-      work_date: state.date,
-      start_time: start,
-      end_time: end,
-      hours,
-      description: desc,
-      task_id: state.taskId || null
-    });
+    let { error } = await db.from('work_records').insert(payload);
+    if (error && isMissingProjectFeatureError(error)) {
+      const { project_id, ...fallbackPayload } = payload;
+      ({ error } = await db.from('work_records').insert(fallbackPayload));
+    }
     if (error) throw error;
-    document.getElementById('successMsg').textContent = `${state.date} — ${state.taskName}`;
-    document.getElementById('summaryPill').textContent = `${start} → ${end} · ${hours}h`;
+    document.getElementById('successMsg').textContent = `${state.date} — ${state.projectName || state.taskProjectName} — ${state.taskName}`;
+    document.getElementById('summaryPill').textContent = `${start} → ${end} · ${formatHours(hours)}`;
     goToStep(3);
   } catch(e) {
     showToast('خطا: '+e.message, true);
@@ -1088,7 +1585,7 @@ function calcHours(s,e) {
 }
 
 function resetForm() {
-  state = {date:'',taskId:undefined,taskName:'',tasks:[]};
+  state = {date:'',projectId:undefined,projectName:'',taskId:undefined,taskName:'',taskProjectName:'',projects:[],tasks:[],editingProjectId:null,editingTaskId:null,editingRecordId:null,editingAdminUserId:null,passwordAdminUserId:null};
   buildDayDropdown(today.m, today.d);
   document.getElementById('month').value = today.m;
   document.getElementById('description').value = '';
@@ -1097,23 +1594,171 @@ function resetForm() {
   goToStep(0);
 }
 
-// ===================== مودال وظایف =====================
+// ===================== مودال تنظیمات =====================
 async function openTaskManagerModal() {
+  return openAppSettingsModal('tasks');
+}
+
+function switchSettingsTab(tab='profile') {
+  const tabs = ['profile','projects','tasks','salary'];
+  const normalized = tabs.includes(tab) ? tab : 'profile';
+  tabs.forEach(name => {
+    const btn = document.getElementById('settingsTabBtn' + name.charAt(0).toUpperCase() + name.slice(1));
+    const panel = document.getElementById('settingsPanel' + name.charAt(0).toUpperCase() + name.slice(1));
+    const active = name === normalized;
+    if (btn) {
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
+    if (panel) {
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    }
+  });
+}
+
+function populateTaskProjectSelect(selectedId='') {
+  const select = document.getElementById('taskProjectSelect');
+  if (!select) return;
+  select.innerHTML = state.projects.length
+    ? state.projects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')
+    : '<option value="">ابتدا پروژه بساز</option>';
+  if (selectedId && Array.from(select.options).some(o => String(o.value) === String(selectedId))) select.value = selectedId;
+}
+
+async function openAppSettingsModal(focusSection='profile') {
   try {
-    const { data: tasks, error } = await db
-      .from('tasks').select('id,name').eq('user_id', requireUserId()).eq('active', true).order('id', { ascending: true });
-    if (error) throw error;
-    state.tasks = tasks || [];
+    const userId = requireUserId();
+    const [projects, tasks] = await Promise.all([
+      fetchActiveProjectsForUser(userId),
+      fetchActiveTasksForUser(userId)
+    ]);
+    state.projects = projects;
+    state.tasks = tasks;
+    renderProjectManagerList(state.projects);
     renderTaskManagerList(state.tasks);
+    populateTaskProjectSelect();
+    state.editingProjectId = null;
     state.editingTaskId = null;
-    document.getElementById('newTaskInput').value = '';
-    document.getElementById('taskModalTitle').textContent = 'مدیریت وظایف';
-    document.getElementById('btnSaveTask').textContent = 'افزودن وظیفه';
-    document.getElementById('taskModal').classList.add('open');
-    setTimeout(()=>document.getElementById('newTaskInput').focus(),100);
+
+    const projectInput = document.getElementById('newProjectInput');
+    const taskInput = document.getElementById('newTaskInput');
+    if (projectInput) projectInput.value = '';
+    if (taskInput) taskInput.value = '';
+
+    const title = document.getElementById('taskModalTitle');
+    if (title) title.textContent = 'تنظیمات';
+    const projectBtn = document.getElementById('btnSaveProject');
+    if (projectBtn) projectBtn.textContent = 'افزودن پروژه';
+    const taskBtn = document.getElementById('btnSaveTask');
+    if (taskBtn) taskBtn.textContent = 'افزودن وظیفه';
+
+    const fullNameInput = document.getElementById('settingsFullNameInput');
+    const telegramInput = document.getElementById('settingsTelegramInput');
+    const status = document.getElementById('telegramLinkStatus');
+    if (fullNameInput) fullNameInput.value = currentUser?.full_name || '';
+    if (telegramInput) telegramInput.value = normalizeTelegramUsername(currentUser?.telegram_username) || '';
+    if (status) {
+      status.textContent = currentUser?.telegram_chat_id
+        ? 'بات تلگرام به این حساب وصل شده است.'
+        : 'فعلاً فقط یوزرنیم ذخیره می‌شود؛ بعداً بات، chat_id را ثبت می‌کند.';
+    }
+
+    const rateInput = document.getElementById('hourlyRateInput');
+    const coefInput = document.getElementById('overtimeCoefInput');
+    const rateText = document.getElementById('salaryCurrentRate');
+    if (rateInput) rateInput.value = HOURLY_RATE;
+    if (coefInput) coefInput.value = OVERTIME_COEFFICIENT;
+    if (rateText) rateText.textContent = Number(HOURLY_RATE || 0).toLocaleString('en-US');
+
+    const tab = ['profile','projects','tasks','salary'].includes(focusSection) ? focusSection : 'profile';
+    switchSettingsTab(tab);
+    openAnimatedModal('taskModal');
+    setTimeout(() => {
+      if (tab === 'salary') rateInput?.focus();
+      else if (tab === 'projects') projectInput?.focus();
+      else if (tab === 'tasks') taskInput?.focus();
+      else fullNameInput?.focus();
+    }, 100);
   } catch(e) {
-    showToast('خطا در بارگذاری وظایف: ' + e.message, true);
+    showToast('خطا در بارگذاری تنظیمات: ' + e.message, true);
   }
+}
+
+function renderProjectManagerList(projects) {
+  const list = document.getElementById('projectManagerList');
+  if (!list) return;
+  if (!projects.length) { list.innerHTML = '<p class="muted-text" style="font-size:12px">هنوز پروژه‌ای ثبت نشده.</p>'; return; }
+  list.innerHTML = projects.map(p => `
+    <div class="task-manager-row">
+      <span>${escapeHtml(p.name)}</span>
+      <div class="task-mini-actions">
+        <button class="mini-btn" onclick="startEditProject(${escapeAttr(JSON.stringify(p.id))},${escapeAttr(JSON.stringify(p.name))})">ویرایش</button>
+        <button class="mini-btn danger" onclick="deleteProject(${escapeAttr(JSON.stringify(p.id))})">حذف</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function startEditProject(id, name) {
+  state.editingProjectId = id;
+  const input = document.getElementById('newProjectInput');
+  if (input) input.value = name || '';
+  const btn = document.getElementById('btnSaveProject');
+  if (btn) btn.textContent = 'ذخیره تغییرات';
+  switchSettingsTab('projects');
+  input?.focus();
+}
+
+async function saveProject() {
+  const input = document.getElementById('newProjectInput');
+  const name = (input?.value || '').trim();
+  if (!name) { showToast('نام پروژه را وارد کنید', true); shakeFields('newProjectInput'); return; }
+  const btn = document.getElementById('btnSaveProject');
+  if (btn) { btn.disabled = true; btn.textContent = 'در حال ذخیره...'; }
+  const editingId = state.editingProjectId;
+  try {
+    if (editingId) {
+      await updateProjectRecord(editingId, { name });
+      const project = state.projects.find(p => String(p.id) === String(editingId));
+      if (project) project.name = name;
+      state.tasks.forEach(t => { if (String(t.project_id) === String(editingId)) t.project_name = name; });
+      showToast('پروژه ویرایش شد');
+    } else {
+      const data = await insertProjectRecord({ user_id: requireUserId(), name, active: true });
+      state.projects.push(data);
+      showToast('پروژه افزوده شد');
+    }
+    state.editingProjectId = null;
+    if (input) input.value = '';
+    renderProjectManagerList(state.projects);
+    populateTaskProjectSelect(editingId || state.projects.at(-1)?.id || '');
+    if (document.getElementById('projectContainer')) renderProjects(state.projects);
+  } catch(e) {
+    showToast('خطا: '+e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = state.editingProjectId ? 'ذخیره تغییرات' : 'افزودن پروژه'; }
+  }
+}
+
+async function deleteProject(id) {
+  askConfirm('این پروژه و وظایف زیرمجموعه‌اش غیرفعال شوند؟', async () => {
+    try {
+      await deactivateProjectRecord(id);
+      state.projects = state.projects.filter(p => String(p.id) !== String(id));
+      state.tasks = state.tasks.filter(t => String(t.project_id) !== String(id));
+      renderProjectManagerList(state.projects);
+      renderTaskManagerList(state.tasks);
+      populateTaskProjectSelect();
+      if (document.getElementById('projectContainer')) {
+        renderProjects(state.projects);
+        const taskContainer = document.getElementById('taskContainer');
+        if (taskContainer) taskContainer.innerHTML = '<p class="muted-text" style="font-size:12px;text-align:center;padding:16px 0">ابتدا یک پروژه انتخاب کن.</p>';
+      }
+      showToast('پروژه غیرفعال شد');
+    } catch(e) { showToast('خطا: '+e.message, true); }
+    finally { closeConfirmModal(); }
+  });
 }
 
 function renderTaskManagerList(tasks) {
@@ -1122,58 +1767,44 @@ function renderTaskManagerList(tasks) {
   if (!tasks.length) { list.innerHTML = '<p class="muted-text" style="font-size:12px">هنوز وظیفه‌ای ثبت نشده.</p>'; return; }
   list.innerHTML = tasks.map(t => `
     <div class="task-manager-row">
-      <span>${escapeHtml(t.name)}</span>
+      <span>${escapeHtml(t.name)}${getTaskProjectName(t) ? ` · ${escapeHtml(getTaskProjectName(t))}` : ''}</span>
       <div class="task-mini-actions">
-        <button class="mini-btn" onclick="startEditTask(${t.id},'${escapeAttr(t.name)}')">ویرایش</button>
+        <button class="mini-btn" onclick="startEditTask(${t.id},${escapeAttr(JSON.stringify(t.name))},${escapeAttr(JSON.stringify(getTaskProjectId(t) || ''))})">ویرایش</button>
         <button class="mini-btn danger" onclick="deleteTask(${t.id})">حذف</button>
       </div>
     </div>
   `).join('');
 }
 
-function startEditTask(id, name) {
+function startEditTask(id, name, projectId='') {
   state.editingTaskId = id;
   document.getElementById('newTaskInput').value = name;
+  populateTaskProjectSelect(projectId || '');
   document.getElementById('taskModalTitle').textContent = 'ویرایش وظیفه';
   document.getElementById('btnSaveTask').textContent = 'ذخیره تغییرات';
+  switchSettingsTab('tasks');
   document.getElementById('newTaskInput').focus();
 }
 
-function openSalaryModal() {
-  document.getElementById('hourlyRateInput').value = HOURLY_RATE;
-  document.getElementById('overtimeCoefInput').value = OVERTIME_COEFFICIENT;
-  document.getElementById('salaryCurrentRate').textContent = HOURLY_RATE.toLocaleString('en-US');
-  document.getElementById('salaryModal').classList.add('open');
-}
+function openSalaryModal() { openAppSettingsModal('salary'); }
 
 function closeModal() {
+  state.editingProjectId = null;
   state.editingTaskId = null;
-  document.getElementById('taskModalTitle').textContent = 'مدیریت وظایف';
-  document.getElementById('btnSaveTask').textContent = 'افزودن وظیفه';
-  document.getElementById('taskModal').classList.remove('open');
+  const title = document.getElementById('taskModalTitle');
+  const projectBtn = document.getElementById('btnSaveProject');
+  const taskBtn = document.getElementById('btnSaveTask');
+  if (title) title.textContent = 'تنظیمات';
+  if (projectBtn) projectBtn.textContent = 'افزودن پروژه';
+  if (taskBtn) taskBtn.textContent = 'افزودن وظیفه';
+  closeAnimatedModal('taskModal');
 }
 
-function closeSalaryModal() { document.getElementById('salaryModal').classList.remove('open'); }
+function closeSalaryModal() { closeModal(); }
 
-function openUserSettingsModal() {
-  if (!currentUser) return;
-  const fullNameInput = document.getElementById('settingsFullNameInput');
-  const telegramInput = document.getElementById('settingsTelegramInput');
-  const status = document.getElementById('telegramLinkStatus');
+function openUserSettingsModal() { return openAppSettingsModal('profile'); }
 
-  if (fullNameInput) fullNameInput.value = currentUser.full_name || '';
-  if (telegramInput) telegramInput.value = normalizeTelegramUsername(currentUser.telegram_username) || '';
-  if (status) {
-    status.textContent = currentUser.telegram_chat_id
-      ? 'بات تلگرام به این حساب وصل شده است.'
-      : 'فعلاً فقط یوزرنیم ذخیره می‌شود؛ بعداً بات، chat_id را ثبت می‌کند.';
-  }
-  document.getElementById('userSettingsModal')?.classList.add('open');
-}
-
-function closeUserSettingsModal() {
-  document.getElementById('userSettingsModal')?.classList.remove('open');
-}
+function closeUserSettingsModal() { closeModal(); }
 
 async function saveUserSettings() {
   if (!currentUser?.id) return;
@@ -1205,19 +1836,18 @@ async function saveUserSettings() {
     OVERTIME_COEFFICIENT = Number(data.overtime_coefficient ?? DEFAULT_OVERTIME_COEFFICIENT);
     saveSession(currentUser);
     paintUserBadge();
-    closeUserSettingsModal();
     showToast('تنظیمات کاربر ذخیره شد');
   } catch(e) {
     showToast('خطا: ' + e.message, true);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'ذخیره'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'ذخیره پروفایل'; }
   }
 }
 
 async function saveSalarySettings() {
-  const rate = Number(document.getElementById('hourlyRateInput').value || 0);
-  const coef = Number(document.getElementById('overtimeCoefInput').value || 1);
-  if (rate < 0 || coef < 1) { showToast('مقادیر نامعتبر', true); return; }
+  const rate = Number(toEnglishDigits(document.getElementById('hourlyRateInput').value || 0));
+  const coef = Number(toEnglishDigits(document.getElementById('overtimeCoefInput').value || 1));
+  if (rate < 0 || coef < 1) { showToast('مقادیر نامعتبر', true); shakeFields(rate < 0 ? 'hourlyRateInput' : null, coef < 1 ? 'overtimeCoefInput' : null); return; }
   try {
     const { error } = await db.from('wt_users')
       .update({ hourly_rate: rate, overtime_coefficient: coef })
@@ -1226,8 +1856,7 @@ async function saveSalarySettings() {
     HOURLY_RATE = rate; OVERTIME_COEFFICIENT = coef;
     currentUser.hourly_rate = rate; currentUser.overtime_coefficient = coef;
     saveSession(currentUser);
-    document.getElementById('salaryCurrentRate').textContent = HOURLY_RATE.toLocaleString('en-US');
-    closeSalaryModal();
+    document.getElementById('salaryCurrentRate').textContent = Number(HOURLY_RATE || 0).toLocaleString('en-US');
     loadDashboard();
     if (document.getElementById('reportBody')) renderReportFromCache();
     showToast('تنظیمات حقوق ذخیره شد');
@@ -1238,60 +1867,66 @@ async function saveSalarySettings() {
 
 async function saveNewTask() {
   const name = document.getElementById('newTaskInput').value.trim();
-  if (!name) { showToast('نام وظیفه را وارد کنید', true); return; }
+  const projectSelect = document.getElementById('taskProjectSelect');
+  const projectId = projectSelect?.value || '';
+  const projectName = getSelectedProjectNameById(projectId);
+  if (!projectId) { showToast('پروژه وظیفه را انتخاب کنید', true); shakeFields('taskProjectSelect'); return; }
+  if (!name) { showToast('نام وظیفه را وارد کنید', true); shakeFields('newTaskInput'); return; }
   const btn = document.getElementById('btnSaveTask');
   const editingId = state.editingTaskId;
   const isEditing = Boolean(editingId);
   btn.disabled=true; btn.textContent='در حال ذخیره...';
   try {
     if (isEditing) {
-      const { error } = await db.from('tasks').update({ name }).eq('id', editingId);
-      if (error) throw error;
-      const cur = state.tasks.find(t => t.id === editingId);
-      if (cur) cur.name = name;
+      await updateTaskRecord(editingId, { name, project_id: projectId, project_name: projectName });
+      const cur = state.tasks.find(t => String(t.id) === String(editingId));
+      if (cur) { cur.name = name; cur.project_id = projectId; cur.project_name = projectName; cur.projects = { id: projectId, name: projectName }; }
       showToast('وظیفه ویرایش شد');
     } else {
-      const { data, error } = await db.from('tasks').insert({ user_id: requireUserId(), name, active: true }).select('id,name').single();
-      if (error) throw error;
+      const data = await insertTaskRecord({ user_id: requireUserId(), name, project_id: projectId, project_name: projectName, active: true });
       state.tasks.push(data);
       showToast('وظیفه افزوده شد');
     }
-    closeModal();
+    state.editingTaskId = null;
+    document.getElementById('newTaskInput').value = '';
     renderTaskManagerList(state.tasks);
-    if (document.getElementById('taskContainer')) renderTasks(state.tasks);
-    if (isEditing) {
-      const task = state.tasks.find(t => t.id === editingId);
-      if (task) selectTask(task.id, task.name);
-    } else {
-      const created = state.tasks[state.tasks.length-1];
-      if (created) selectTask(created.id, created.name);
+    if (document.getElementById('projectContainer')) {
+      renderProjects(state.projects);
+      if (state.projectId !== undefined) selectProject(state.projectId, state.projectName);
+    }
+    const createdOrEdited = isEditing ? state.tasks.find(t => String(t.id) === String(editingId)) : state.tasks[state.tasks.length-1];
+    if (createdOrEdited && String(getTaskProjectId(createdOrEdited)) === String(state.projectId)) {
+      selectTask(createdOrEdited.id, createdOrEdited.name, getTaskProjectName(createdOrEdited));
     }
   } catch(e) {
     showToast('خطا: '+e.message, true);
   } finally {
-    btn.disabled=false; btn.textContent=isEditing?'ذذیره تغییرات':'افزودن وظیفه';
+    btn.disabled=false; btn.textContent=state.editingTaskId?'ذخیره تغییرات':'افزودن وظیفه';
   }
 }
 
 function askConfirm(message, onConfirm) {
   confirmState = { open: true, message, onConfirm };
   document.getElementById('confirmText').textContent = message;
-  document.getElementById('confirmModal').classList.add('open');
+  openAnimatedModal('confirmModal');
 }
 
 function closeConfirmModal() {
-  document.getElementById('confirmModal')?.classList.remove('open');
+  closeAnimatedModal('confirmModal');
   confirmState.open = false; confirmState.onConfirm = null;
 }
 
 async function deleteTask(id) {
   askConfirm('این وظیفه غیرفعال شود؟', async () => {
     try {
-      const { error } = await db.from('tasks').update({ active: false }).eq('id', id);
+      const { error } = await db.from('tasks').update({ active: false }).eq('id', id).eq('user_id', requireUserId());
       if (error) throw error;
-      state.tasks = state.tasks.filter(t => t.id !== id);
+      state.tasks = state.tasks.filter(t => String(t.id) !== String(id));
       renderTaskManagerList(state.tasks);
-      if (document.getElementById('taskContainer')) renderTasks(state.tasks);
+      if (document.getElementById('projectContainer')) {
+        renderProjects(state.projects);
+        if (state.projectId !== undefined) selectProject(state.projectId, state.projectName);
+      }
       showToast('وظیفه غیرفعال شد');
     } catch(e) { showToast('خطا: '+e.message, true); }
     finally { closeConfirmModal(); }
@@ -1307,37 +1942,62 @@ async function openRecordEditor(id) {
     }
 
     const taskOwnerId = isCurrentUserAdmin() ? record.user_id : requireUserId();
-    const { data: tasks, error } = await db
-      .from('tasks').select('id,name').eq('user_id', taskOwnerId).eq('active', true).order('id', { ascending: true });
-    if (error) throw error;
+    const [projects, tasks] = await Promise.all([
+      fetchActiveProjectsForUser(taskOwnerId),
+      fetchActiveTasksForUser(taskOwnerId)
+    ]);
 
     state.editingRecordId = id;
     document.getElementById('recordDateInput').value = record.work_date || '';
     document.getElementById('recordStartInput').value = String(record.start_time || '08:30').slice(0,5);
     document.getElementById('recordEndInput').value = String(record.end_time || '17:00').slice(0,5);
     document.getElementById('recordDescInput').value = record.description || '';
+
+    const projectSelect = document.getElementById('recordProjectSelect');
     const taskSelect = document.getElementById('recordTaskSelect');
-    taskSelect.innerHTML = '<option value="">بدون وظیفه</option>' + (tasks||[]).map(t => `<option value="${t.id}" ${String(t.id)===String(record.task_id)?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
-    document.getElementById('recordModal').classList.add('open');
+    const recordProjectId = record.project_id || record.projects?.id || record.tasks?.project_id || record.tasks?.projects?.id || '';
+
+    const renderRecordTaskOptions = (projectId, selectedTaskId='') => {
+      const filteredTasks = projectId ? tasks.filter(t => String(getTaskProjectId(t)) === String(projectId)) : tasks;
+      taskSelect.innerHTML = '<option value="">بدون وظیفه</option>' + filteredTasks.map(t => `<option value="${t.id}" ${String(t.id)===String(selectedTaskId)?'selected':''}>${escapeHtml(t.name)}</option>`).join('');
+    };
+
+    if (projectSelect) {
+      projectSelect.innerHTML = '<option value="">بدون پروژه</option>' + projects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+      if (recordProjectId && Array.from(projectSelect.options).some(o => String(o.value) === String(recordProjectId))) projectSelect.value = recordProjectId;
+      projectSelect.onchange = () => renderRecordTaskOptions(projectSelect.value, '');
+      renderRecordTaskOptions(projectSelect.value, record.task_id || '');
+    } else {
+      renderRecordTaskOptions('', record.task_id || '');
+    }
+
+    openAnimatedModal('recordModal');
   } catch(e) { showToast('خطا: '+e.message, true); }
 }
 
 async function saveRecordEdit() {
-  const date = document.getElementById('recordDateInput').value.trim();
+  const date = toEnglishDigits(document.getElementById('recordDateInput').value.trim());
   const start = document.getElementById('recordStartInput').value;
   const end = document.getElementById('recordEndInput').value;
   const desc = document.getElementById('recordDescInput').value.trim();
+  const projectId = document.getElementById('recordProjectSelect')?.value || null;
   const taskId = document.getElementById('recordTaskSelect').value || null;
-  if (!date||!start||!end) { showToast('تاریخ و زمان را پر کنید', true); return; }
+  if (!date||!start||!end) { showToast('تاریخ و زمان را پر کنید', true); shakeFields(!date ? 'recordDateInput' : null, !start ? 'recordStartInput' : null, !end ? 'recordEndInput' : null); return; }
   const hours = calcHours(start, end);
   if (hours <= 0) { showToast('زمان پایان باید بعد از شروع باشد', true); return; }
+  const payload = { work_date: date, start_time: start, end_time: end, hours, description: desc, project_id: projectId, task_id: taskId };
   try {
-    let q = db.from('work_records')
-      .update({ work_date: date, start_time: start, end_time: end, hours, description: desc, task_id: taskId })
-      .eq('id', state.editingRecordId);
+    let q = db.from('work_records').update(payload).eq('id', state.editingRecordId);
     if (!isCurrentUserAdmin()) q = q.eq('user_id', requireUserId());
-    const { error } = await q;
+    let { error } = await q;
+    if (error && isMissingProjectFeatureError(error)) {
+      const { project_id, ...fallbackPayload } = payload;
+      q = db.from('work_records').update(fallbackPayload).eq('id', state.editingRecordId);
+      if (!isCurrentUserAdmin()) q = q.eq('user_id', requireUserId());
+      ({ error } = await q);
+    }
     if (error) throw error;
+    highlightedRecordId = state.editingRecordId;
     closeRecordModal(); await loadReports(); await loadDashboard();
     showToast('رکورد ویرایش شد');
   } catch(e) { showToast('خطا: '+e.message, true); }
@@ -1346,6 +2006,8 @@ async function saveRecordEdit() {
 async function deleteRecord(id) {
   askConfirm('این رکورد حذف شود؟', async () => {
     try {
+      pulseReportRow(id, 'row-danger-pulse');
+      if (!prefersReducedMotion()) await wait(220);
       let q = db.from('work_records').delete().eq('id', id);
       if (!isCurrentUserAdmin()) q = q.eq('user_id', requireUserId());
       const { error } = await q;
@@ -1359,7 +2021,7 @@ async function deleteRecord(id) {
 
 function closeRecordModal() {
   state.editingRecordId = null;
-  document.getElementById('recordModal')?.classList.remove('open');
+  closeAnimatedModal('recordModal');
 }
 
 function confirmYes() { if (confirmState.onConfirm) confirmState.onConfirm(); }
@@ -1373,7 +2035,7 @@ async function initAdminPage() {
 async function loadAdminUsers() {
   const body = document.getElementById('adminUsersBody');
   if (!body) return;
-  body.innerHTML = '<tr><td colspan="8" class="loading">در حال بارگذاری...</td></tr>';
+  body.innerHTML = renderSkeletonRows(4, 8);
   try {
     const { data, error } = await db.from('wt_users')
       .select('id, username, full_name, role, active, hourly_rate, overtime_coefficient, telegram_username, telegram_chat_id, telegram_linked_at, created_at')
@@ -1393,18 +2055,18 @@ function renderAdminUsers() {
     body.innerHTML = '<tr><td colspan="8" class="empty-state">هنوز کاربری ثبت نشده است.</td></tr>';
     return;
   }
-  body.innerHTML = adminUsersCache.map(u => `
-    <tr>
+  body.innerHTML = adminUsersCache.map((u, i) => `
+    <tr class="row-enter" style="--row-i:${Math.min(i, 12)}">
       <td style="font-family:var(--font)">${escapeHtml(u.full_name || u.username)}</td>
       <td>${escapeHtml(u.username)}</td>
-      <td>${u.role === 'admin' ? 'ادمین' : 'یوزر'}</td>
+      <td>${u.role === 'admin' ? 'ادمین' : 'کاربر'}</td>
       <td>${u.active ? 'فعال' : 'غیرفعال'}</td>
       <td>${formatMoney(u.hourly_rate ?? DEFAULT_HOURLY_RATE)}</td>
       <td>${Number(u.overtime_coefficient ?? DEFAULT_OVERTIME_COEFFICIENT).toFixed(1)}x</td>
       <td>${escapeHtml(formatTelegramUsername(u.telegram_username))}</td>
       <td>
         <div class="table-actions" style="justify-content:center">
-          <button class="mini-btn" onclick="changeUserPassword('${u.id}', '${escapeAttr(u.full_name || u.username)}')">رمز</button>
+          <button class="mini-btn" onclick="changeUserPassword('${u.id}', ${escapeAttr(JSON.stringify(u.full_name || u.username))})">رمز</button>
           <button class="mini-btn" onclick="editUser('${u.id}')">ویرایش</button>
           <button class="mini-btn danger" onclick="toggleUserActive('${u.id}', ${!u.active})">${u.active ? 'غیرفعال' : 'فعال'}</button>
         </div>
@@ -1419,14 +2081,18 @@ async function createAdminUser() {
   const password = document.getElementById('newUserPassword').value;
   const role = document.getElementById('newUserRole').value;
   const telegramUsername = normalizeTelegramUsername(document.getElementById('newUserTelegram')?.value || '');
-  const hourlyRate = Number(document.getElementById('newUserHourlyRate').value || DEFAULT_HOURLY_RATE);
-  const overtimeCoef = Number(document.getElementById('newUserOvertimeCoef').value || DEFAULT_OVERTIME_COEFFICIENT);
+  const hourlyRate = Number(toEnglishDigits(document.getElementById('newUserHourlyRate').value || DEFAULT_HOURLY_RATE));
+  const overtimeCoef = Number(toEnglishDigits(document.getElementById('newUserOvertimeCoef').value || DEFAULT_OVERTIME_COEFFICIENT));
 
   if (!username || !password) {
-    showToast('نام کاربری و رمز عبور الزامی است.', true); return;
+    showToast('نام کاربری و رمز عبور الزامی است.', true);
+    shakeFields(!username ? 'newUserUsername' : null, !password ? 'newUserPassword' : null);
+    return;
   }
   if (!isValidPassword(password)) {
-    showToast('رمز عبور را وارد کنید.', true); return;
+    showToast('رمز عبور را وارد کنید.', true);
+    shakeFields('newUserPassword');
+    return;
   }
   if (!isValidTelegramUsername(telegramUsername)) {
     showToast('یوزرنیم تلگرام معتبر نیست.', true); return;
@@ -1450,16 +2116,35 @@ async function createAdminUser() {
   }
 }
 
-async function changeUserPassword(userId, displayName) {
-  const password = window.prompt(`رمز عبور جدید برای ${displayName}:`);
-  if (!password) return;
-  if (!isValidPassword(password)) {
-    showToast('رمز عبور را وارد کنید.', true);
-    return;
-  }
+function changeUserPassword(userId, displayName='') {
+  state.passwordAdminUserId = userId;
+  const title = document.getElementById('adminPasswordUserName');
+  const pass = document.getElementById('adminPasswordInput');
+  const pass2 = document.getElementById('adminPasswordRepeatInput');
+  if (title) title.textContent = displayName || 'کاربر';
+  if (pass) pass.value = '';
+  if (pass2) pass2.value = '';
+  openAnimatedModal('adminPasswordModal');
+  setTimeout(() => pass?.focus(), 100);
+}
+
+function closeAdminPasswordModal() {
+  state.passwordAdminUserId = null;
+  closeAnimatedModal('adminPasswordModal');
+}
+
+async function saveAdminPassword() {
+  const userId = state.passwordAdminUserId;
+  const password = document.getElementById('adminPasswordInput')?.value || '';
+  const repeat = document.getElementById('adminPasswordRepeatInput')?.value || '';
+  if (!userId) return;
+  if (!password) { showToast('رمز عبور را وارد کنید.', true); shakeFields('adminPasswordInput'); return; }
+  if (!isValidPassword(password)) { showToast('رمز عبور را وارد کنید.', true); shakeFields('adminPasswordInput'); return; }
+  if (password !== repeat) { showToast('تکرار رمز عبور درست نیست.', true); shakeFields('adminPasswordRepeatInput'); return; }
   try {
     const { error } = await db.from('wt_users').update({ password }).eq('id', userId);
     if (error) throw error;
+    closeAdminPasswordModal();
     showToast('رمز عبور تغییر کرد');
   } catch(e) { showToast('خطا: ' + e.message, true); }
 }
@@ -1480,27 +2165,44 @@ async function toggleUserActive(userId, active) {
   });
 }
 
-async function editUser(userId) {
+function editUser(userId) {
   const user = adminUsersCache.find(u => u.id === userId);
   if (!user) return;
+  state.editingAdminUserId = userId;
+  document.getElementById('adminEditFullName').value = user.full_name || '';
+  document.getElementById('adminEditUsername').value = user.username || '';
+  document.getElementById('adminEditRole').value = ['admin','user'].includes(user.role) ? user.role : 'user';
+  document.getElementById('adminEditHourlyRate').value = user.hourly_rate ?? DEFAULT_HOURLY_RATE;
+  document.getElementById('adminEditOvertimeCoef').value = user.overtime_coefficient ?? DEFAULT_OVERTIME_COEFFICIENT;
+  document.getElementById('adminEditTelegram').value = normalizeTelegramUsername(user.telegram_username) || '';
+  openAnimatedModal('adminEditUserModal');
+  setTimeout(() => document.getElementById('adminEditFullName')?.focus(), 100);
+}
 
-  const fullName = window.prompt('نام نمایشی:', user.full_name || '') ?? user.full_name;
-  const username = window.prompt('نام کاربری:', user.username || '') ?? user.username;
-  const role = window.prompt('نقش (admin یا user):', user.role || 'user') ?? user.role;
-  const hourlyRateText = window.prompt('نرخ ساعتی:', String(user.hourly_rate ?? DEFAULT_HOURLY_RATE));
-  const overtimeText = window.prompt('ضریب اضافه‌کاری:', String(user.overtime_coefficient ?? DEFAULT_OVERTIME_COEFFICIENT));
-  const telegramText = window.prompt('یوزرنیم تلگرام، بدون @:', normalizeTelegramUsername(user.telegram_username) || '') ?? user.telegram_username;
+function closeAdminEditUserModal() {
+  state.editingAdminUserId = null;
+  closeAnimatedModal('adminEditUserModal');
+}
 
-  if (!['admin','user'].includes(role)) { showToast('نقش نامعتبر است.', true); return; }
-  const hourlyRate = Number(hourlyRateText || DEFAULT_HOURLY_RATE);
-  const overtimeCoef = Number(overtimeText || DEFAULT_OVERTIME_COEFFICIENT);
-  if (hourlyRate < 0 || overtimeCoef < 1) { showToast('نرخ یا ضریب نامعتبر است.', true); return; }
-  const telegramUsername = normalizeTelegramUsername(telegramText);
-  if (!isValidTelegramUsername(telegramUsername)) { showToast('یوزرنیم تلگرام معتبر نیست.', true); return; }
+async function saveAdminUserEdit() {
+  const userId = state.editingAdminUserId;
+  if (!userId) return;
+  const fullName = document.getElementById('adminEditFullName').value.trim();
+  const username = document.getElementById('adminEditUsername').value.trim();
+  const role = document.getElementById('adminEditRole').value;
+  const hourlyRate = Number(toEnglishDigits(document.getElementById('adminEditHourlyRate').value || DEFAULT_HOURLY_RATE));
+  const overtimeCoef = Number(toEnglishDigits(document.getElementById('adminEditOvertimeCoef').value || DEFAULT_OVERTIME_COEFFICIENT));
+  const telegramUsername = normalizeTelegramUsername(document.getElementById('adminEditTelegram').value || '');
+
+  if (!username) { showToast('نام کاربری الزامی است.', true); shakeFields('adminEditUsername'); return; }
+  if (!['admin','user'].includes(role)) { showToast('نقش نامعتبر است.', true); shakeFields('adminEditRole'); return; }
+  if (hourlyRate < 0 || overtimeCoef < 1) { showToast('نرخ یا ضریب نامعتبر است.', true); shakeFields(hourlyRate < 0 ? 'adminEditHourlyRate' : null, overtimeCoef < 1 ? 'adminEditOvertimeCoef' : null); return; }
+  if (!isValidTelegramUsername(telegramUsername)) { showToast('یوزرنیم تلگرام معتبر نیست.', true); shakeFields('adminEditTelegram'); return; }
 
   try {
     const { error } = await db.from('wt_users').update({ username, full_name: fullName, role, hourly_rate: hourlyRate, overtime_coefficient: overtimeCoef, telegram_username: telegramUsername }).eq('id', userId);
     if (error) throw error;
+    closeAdminEditUserModal();
     showToast('کاربر ویرایش شد');
     await loadAdminUsers();
   } catch(e) { showToast('خطا: ' + e.message, true); }
@@ -1512,12 +2214,14 @@ document.addEventListener('click', e => {
   if (e.target.id === 'taskModal') closeModal();
   if (e.target.id === 'salaryModal') closeSalaryModal();
   if (e.target.id === 'userSettingsModal') closeUserSettingsModal();
+  if (e.target.id === 'adminEditUserModal') closeAdminEditUserModal();
+  if (e.target.id === 'adminPasswordModal') closeAdminPasswordModal();
   if (e.target.id === 'recordModal') closeRecordModal();
   if (e.target.id === 'confirmModal') closeConfirmModal();
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSignupModal(); closeModal(); closeSalaryModal(); closeRecordModal(); closeConfirmModal(); }
+  if (e.key === 'Escape') { closeSignupModal(); closeModal(); closeSalaryModal(); closeAdminEditUserModal(); closeAdminPasswordModal(); closeRecordModal(); closeConfirmModal(); }
   if (e.key === 'Enter' && document.getElementById('passwordGate')?.style.display !== 'none') {
     if (document.getElementById('signupModal')?.classList.contains('open')) {
       e.preventDefault();
@@ -1531,9 +2235,12 @@ document.addEventListener('keydown', e => {
 function showToast(msg, isError=false) {
   const t = document.getElementById('toast');
   if (!t) return;
-  t.textContent = msg;
+  t.textContent = toPersianDigits(msg);
+  t.className = 'toast'+(isError?' error':'');
+  void t.offsetWidth;
   t.className = 'toast'+(isError?' error':'')+' show';
-  setTimeout(()=>{ t.className='toast'+(isError?' error':''); }, 3000);
+  clearTimeout(t._toastTimer);
+  t._toastTimer = setTimeout(()=>{ t.className='toast'+(isError?' error':''); }, 3000);
 }
 
 window.addEventListener('storage', e => {
@@ -1558,6 +2265,7 @@ window.addEventListener('focus', () => {
 });
 
 window.addEventListener('DOMContentLoaded', async () => {
+  startPersianDigitObserver();
   setupPasswordInputs();
 
   const expiredFlag = readStorage(SESSION_EXPIRED_FLAG);

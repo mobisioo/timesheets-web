@@ -6,18 +6,24 @@
   <title>گزارش — ساعت کار</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="page-report">
   <div id="passwordGate" class="gate-overlay">
     <div class="gate-card">
       <div class="gate-logo">WT</div>
       <h2 class="gate-title">ساعت کار</h2>
       <p class="gate-sub">برای مشاهده گزارش وارد شوید.</p>
-      <div class="gate-input-wrap" style="direction:rtl">
-        <input type="text" id="loginInput" placeholder="نام کاربری" autocomplete="username" style="letter-spacing:0;text-align:right;direction:ltr">
-      </div>
-      <div class="gate-input-wrap">
-        <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
-        <button onclick="checkPassword()" id="gateBtn">→</button>
+      <div class="gate-login-grid">
+        <div class="gate-fields">
+          <label class="floating-field" for="loginInput">
+            <input type="text" id="loginInput" placeholder=" " autocomplete="username">
+            <span>نام کاربری</span>
+          </label>
+          <label class="floating-field" for="passwordInput">
+            <input type="password" id="passwordInput" placeholder=" " autocomplete="current-password">
+            <span>رمز عبور</span>
+          </label>
+        </div>
+        <button class="gate-submit-btn" onclick="checkPassword()" id="gateBtn" type="button">ورود</button>
       </div>
       <p class="gate-error" id="gateError"></p>
     </div>
@@ -37,8 +43,8 @@
           <h2 class="report-title">ساعات کاری ثبت شده</h2>
         </div>
         <div class="report-actions">
-          <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">← برگشت</button>
-          <button class="btn btn-ghost btn-small" id="adminReportBtn" style="display:none" onclick="window.location.href='admin.html'">پنل ادمین</button>
+          <button class="btn btn-ghost btn-small" onclick="navigateTo('index.html')">← برگشت</button>
+          <button class="btn btn-ghost btn-small" id="adminReportBtn" style="display:none" onclick="navigateTo('admin.html')">پنل ادمین</button>
           <button class="btn btn-primary btn-small" onclick="exportReportToExcel()">خروجی CSV</button>
           <button class="btn btn-primary btn-small" onclick="exportOdooReport()">خروجی odoo</button>
           <button class="btn btn-ghost btn-small" onclick="logout()">خروج</button>
@@ -97,6 +103,8 @@
       <h3>ویرایش رکورد</h3>
       <label>تاریخ (YYYY-MM-DD)</label>
       <input type="text" id="recordDateInput" placeholder="1405-01-01">
+      <label>پروژه</label>
+      <div class="select-wrap"><select id="recordProjectSelect"></select></div>
       <label>تسک</label>
       <div class="select-wrap"><select id="recordTaskSelect"></select></div>
       <label>شروع</label>

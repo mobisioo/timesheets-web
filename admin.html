@@ -6,18 +6,24 @@
   <title>پنل ادمین — ساعت کار</title>
   <link rel="stylesheet" href="assets/style.css">
 </head>
-<body>
+<body class="page-admin">
   <div id="passwordGate" class="gate-overlay">
     <div class="gate-card">
       <div class="gate-logo">WT</div>
       <h2 class="gate-title">پنل ادمین</h2>
       <p class="gate-sub">برای مدیریت کاربران وارد شوید.</p>
-      <div class="gate-input-wrap" style="direction:ltr">
-        <input type="text" id="loginInput" placeholder="نام کاربری" autocomplete="username" style="letter-spacing:0;text-align:center;direction:ltr">
-      </div>
-      <div class="gate-input-wrap">
-        <input type="password" id="passwordInput" placeholder="رمز عبور" autocomplete="current-password">
-        <button onclick="checkPassword()" id="gateBtn">→</button>
+      <div class="gate-login-grid">
+        <div class="gate-fields">
+          <label class="floating-field" for="loginInput">
+            <input type="text" id="loginInput" placeholder=" " autocomplete="username" style="text-align: center;">
+            <span>نام کاربری</span>
+          </label>
+          <label class="floating-field" for="passwordInput">
+            <input type="password" id="passwordInput" placeholder=" " autocomplete="current-password" style="text-align: center;">
+            <span>رمز عبور</span>
+          </label>
+        </div>
+        <button class="gate-submit-btn" onclick="checkPassword()" id="gateBtn" type="button">ورود</button>
       </div>
       <p class="gate-error" id="gateError"></p>
     </div>
@@ -38,15 +44,15 @@
           <h2 class="report-title">افزودن یوزر</h2>
         </div>
         <div class="report-actions">
-          <button class="btn btn-ghost btn-small" onclick="window.location.href='index.html'">ثبت کار</button>
-          <button class="btn btn-ghost btn-small" onclick="window.location.href='report.html'">گزارش</button>
+          <button class="btn btn-ghost btn-small" onclick="navigateTo('index.html')">ثبت کار</button>
+          <button class="btn btn-ghost btn-small" onclick="navigateTo('report.html')">گزارش</button>
           <button class="btn btn-ghost btn-small" onclick="logout()">خروج</button>
         </div>
       </div>
       <div class="filter-grid">
         <div class="field">
           <label for="newUserUsername">نام کاربری</label>
-          <input type="text" id="newUserUsername" placeholder="نام کاربری" style="direction:ltr;text-align:left">
+          <input type="text" id="newUserUsername" placeholder="نام کاربری">
         </div>
         <div class="field">
           <label for="newUserFullName">نام نمایشی</label>
@@ -60,10 +66,14 @@
           <label for="newUserRole">نقش</label>
           <div class="select-wrap">
             <select id="newUserRole">
-              <option value="user">یوزر</option>
+              <option value="user">کاربر</option>
               <option value="admin">ادمین</option>
             </select>
           </div>
+        </div>
+        <div class="field">
+          <label for="newUserTelegram">یوزرنیم تلگرام</label>
+          <input type="text" id="newUserTelegram" placeholder="بدون @">
         </div>
         <div class="field">
           <label for="newUserHourlyRate">نرخ ساعتی</label>
@@ -91,11 +101,11 @@
         <table class="report-table">
           <thead>
             <tr>
-              <th>نام نمایشی</th><th>نام کاربری</th><th>نقش</th><th>وضعیت</th><th>نرخ</th><th>ضریب</th><th>اقدامات</th>
+              <th>نام نمایشی</th><th>نام کاربری</th><th>نقش</th><th>وضعیت</th><th>نرخ</th><th>ضریب</th><th>تلگرام</th><th>اقدامات</th>
             </tr>
           </thead>
           <tbody id="adminUsersBody">
-            <tr><td colspan="7" class="loading">در حال بارگذاری...</td></tr>
+            <tr><td colspan="8" class="loading">در حال بارگذاری...</td></tr>
           </tbody>
         </table>
       </div>
@@ -112,6 +122,48 @@
       </div>
     </div>
   </div>
+  <div class="modal-backdrop" id="adminEditUserModal">
+    <div class="modal">
+      <h3>ویرایش کاربر</h3>
+      <label for="adminEditFullName">نام نمایشی</label>
+      <input type="text" id="adminEditFullName" placeholder="نام و نام خانوادگی">
+      <label for="adminEditUsername">نام کاربری</label>
+      <input type="text" id="adminEditUsername" placeholder="نام کاربری">
+      <label for="adminEditRole">نقش</label>
+      <div class="select-wrap">
+        <select id="adminEditRole">
+          <option value="user">کاربر</option>
+          <option value="admin">ادمین</option>
+        </select>
+      </div>
+      <label for="adminEditTelegram">یوزرنیم تلگرام</label>
+      <input type="text" id="adminEditTelegram" placeholder="بدون @">
+      <label for="adminEditHourlyRate">نرخ ساعتی</label>
+      <input type="number" id="adminEditHourlyRate" min="0" step="1000">
+      <label for="adminEditOvertimeCoef">ضریب اضافه‌کاری</label>
+      <input type="number" id="adminEditOvertimeCoef" min="1" step="0.1">
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="saveAdminUserEdit()">ذخیره تغییرات</button>
+        <button class="btn btn-ghost" onclick="closeAdminEditUserModal()">لغو</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="adminPasswordModal">
+    <div class="modal">
+      <h3>تغییر رمز عبور</h3>
+      <p class="muted-text">کاربر: <strong id="adminPasswordUserName">—</strong></p>
+      <label for="adminPasswordInput">رمز عبور جدید</label>
+      <input type="password" id="adminPasswordInput" placeholder="رمز جدید" autocomplete="new-password">
+      <label for="adminPasswordRepeatInput">تکرار رمز عبور</label>
+      <input type="password" id="adminPasswordRepeatInput" placeholder="تکرار رمز جدید" autocomplete="new-password">
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="saveAdminPassword()">ذخیره رمز</button>
+        <button class="btn btn-ghost" onclick="closeAdminPasswordModal()">لغو</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   </div><!-- /appRoot -->
 
