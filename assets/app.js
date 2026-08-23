@@ -257,6 +257,11 @@ function isHomePage() {
   return Boolean(document.getElementById('stepHome'));
 }
 
+// صفحه گزارش عمومی است و نیازی به ورود ندارد.
+function isReportPage() {
+  return Boolean(document.getElementById('reportBody'));
+}
+
 function writeStorage(key, value) {
   try { localStorage.setItem(key, value); } catch {}
   try { sessionStorage.setItem(key, value); } catch {}
@@ -359,6 +364,7 @@ function scheduleSessionExpiry(expiresAt) {
 }
 
 function redirectToLogin(expired=false) {
+  if (isReportPage()) return; // گزارش صفحه عمومی است، کاربر را به صفحه ورود نمی‌فرستیم
   if (expired) writeStorage(SESSION_EXPIRED_FLAG, '1');
   navigateTo('index.html');
 }
@@ -576,6 +582,9 @@ async function enterApp() {
 }
 
 async function refreshPageForCurrentSession() {
+  // فقط داده‌ها را دوباره می‌خوانیم؛ initReportPage فقط یک‌بار در بارگذاری اولیه صدا زده می‌شود
+  // تا لیسنرهای فیلترها تکراری ثبت نشوند.
+  if (isReportPage()) { await loadReports(); return; }
   if (!currentUser?.id) {
     if (!isHomePage()) redirectToLogin(false);
     return;
@@ -864,7 +873,7 @@ async function initReportPage() {
 async function loadReportUsersFilter() {
   const wrap = document.getElementById('userFilterWrap');
   const select = document.getElementById('userFilter');
-  if (!wrap || !select || !isCurrentUserAdmin()) return;
+  if (!wrap || !select) return;
 
   wrap.style.display = 'flex';
   const { data, error } = await db.from('wt_users').select('id, username, full_name, role').eq('active', true).order('username');
@@ -875,11 +884,11 @@ async function loadReportUsersFilter() {
 async function loadReports() {
   const reportBody = document.getElementById('reportBody');
   if (!reportBody) return;
-  reportBody.innerHTML = renderSkeletonRows(4, 8);
+  reportBody.innerHTML = renderSkeletonRows(4, 7);
 
   try {
+    // گزارش صفحه عمومی است: بدون ورود، همه رکوردها (یا رکوردهای کاربر انتخاب‌شده) نمایش داده می‌شود.
     const selectedUser = document.getElementById('userFilter')?.value || 'all';
-    const currentUserId = requireUserId();
     const reportSelectClauses = [
       'id, user_id, work_date, start_time, end_time, hours, description, project_id, projects(id,name), task_id, tasks(id, name, project_id, project_name, projects(id,name))',
       'id, user_id, work_date, start_time, end_time, hours, description, project_id, task_id, tasks(id, name, project_id, project_name)',
@@ -889,10 +898,7 @@ async function loadReports() {
 
     const runReportQuery = async (selectClause) => {
       let q = db.from('work_records').select(selectClause).order('work_date', { ascending: false });
-      // قانون اصلی گزارش:
-      // ادمین همه رکوردها را می‌بیند، کاربر عادی فقط رکوردهای خودش را.
-      if (!isCurrentUserAdmin()) q = q.eq('user_id', currentUserId);
-      else if (selectedUser !== 'all') q = q.eq('user_id', selectedUser);
+      if (selectedUser !== 'all') q = q.eq('user_id', selectedUser);
       return q;
     };
 
@@ -905,10 +911,7 @@ async function loadReports() {
     }
     if (error) throw error;
 
-    // گارد دوم سمت کلاینت: حتی اگر query اشتباهی تغییر کند، یوزر عادی فقط دیتای خودش را می‌بیند.
-    const safeRecords = isCurrentUserAdmin()
-      ? (data || [])
-      : (data || []).filter(r => String(r.user_id) === currentUserId);
+    const safeRecords = data || [];
 
     // join با wt_users برای نمایش نام کاربر
     const userIds = [...new Set(safeRecords.map(r => r.user_id))];
@@ -922,7 +925,7 @@ async function loadReports() {
     buildReportFilters(reportRecordsCache);
     renderReportFromCache();
   } catch (e) {
-    reportBody.innerHTML = `<tr><td colspan="8" class="error-msg">خطا در بارگذاری گزارش‌ها: ${escapeHtml(e.message)}</td></tr>`;
+    reportBody.innerHTML = `<tr><td colspan="7" class="error-msg">خطا در بارگذاری گزارش‌ها: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -995,17 +998,16 @@ function renderReportFromCache() {
     <div class="report-chip">مجموع: <strong>${formatHours(totalHours)}</strong></div>
     <div class="report-chip">سقف ماهانه: <strong>${formatHours(totalSalaryInfo.thresholdHours)}</strong></div>
     <div class="report-chip">اضافه‌کاری: <strong>${formatHours(totalSalaryInfo.overtimeHours)}</strong></div>
-    <div class="report-chip">حقوق تخمینی: <strong>${isCurrentUserAdmin() ? 'بر اساس نرخ حساب فعلی' : formatMoney(totalSalaryInfo.salary)}</strong></div>
     <div class="report-chip">ضریب اضافه‌کاری: <strong>${OVERTIME_COEFFICIENT.toFixed(1)}x</strong></div>
   `;
 
   if (!rows.length) {
-    reportBody.innerHTML = '<tr><td colspan="8" class="empty-state">رکوردی برای فیلترهای انتخاب‌شده یافت نشد.</td></tr>';
+    reportBody.innerHTML = '<tr><td colspan="7" class="empty-state">رکوردی برای فیلترهای انتخاب‌شده یافت نشد.</td></tr>';
     return;
   }
 
   reportBody.innerHTML = rows.map((r, i) => `
-    <tr data-record-id="${r.id}" class="row-enter ${String(highlightedRecordId) === String(r.id) ? 'row-highlight' : ''}" style="--row-i:${Math.min(i, 12)}">
+    <tr data-record-id="${r.id}" class="row-enter" style="--row-i:${Math.min(i, 12)}">
       <td style="font-family:var(--font)">${escapeHtml(r.user)}</td>
       <td>${escapeHtml(r.date)}</td>
       <td style="font-family:var(--font)">${escapeHtml(r.task)}</td>
@@ -1013,15 +1015,8 @@ function renderReportFromCache() {
       <td>${escapeHtml(r.start)}</td>
       <td>${escapeHtml(r.end)}</td>
       <td style="font-family:var(--font);font-size:11px">${escapeHtml(r.desc)}</td>
-      <td>
-        <div class="table-actions" style="justify-content:center">
-          <button class="mini-btn" onclick="openRecordEditor(${r.id})">ویرایش</button>
-          <button class="mini-btn danger" onclick="deleteRecord(${r.id})">حذف</button>
-        </div>
-      </td>
     </tr>
   `).join('');
-  highlightedRecordId = null;
 }
 
 function updateDayOptions() {
@@ -1059,10 +1054,8 @@ function exportReportToExcel() {
 
 
 function getOdooExportRows() {
-  const rows = applyReportFilters(reportRecordsCache);
-  return isCurrentUserAdmin()
-    ? rows
-    : rows.filter(r => String(r.user_id || '') === requireUserId());
+  // گزارش عمومی است: همان رکوردهایی که با فیلترهای فعلی روی صفحه دیده می‌شوند خروجی می‌گیرند.
+  return applyReportFilters(reportRecordsCache);
 }
 
 function getRecordTaskName(record) {
@@ -1100,31 +1093,38 @@ async function loadOdooTemplateWorkbook() {
     const buffer = await res.arrayBuffer();
     return window.XLSX.read(buffer, { type: 'array', cellDates: true });
   } catch {
-    const wb = window.XLSX.utils.book_new();
-    const ws = {};
-    window.XLSX.utils.book_append_sheet(wb, ws, 'test');
+    // اگر تمپلیت در دسترس نبود، یک نسخه ساده با همان سرستون‌های تمپلیت اصلی ساخته می‌شود.
+    const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([ODOO_TEMPLATE_HEADERS]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
     return wb;
   }
 }
 
-function getOdooProjectNameFromTemplate(workbook) {
-  const sheetName = workbook.SheetNames?.[0];
-  const sheet = sheetName ? workbook.Sheets[sheetName] : null;
-  const value = sheet?.B1?.v;
-  return String(value || ODOO_DEFAULT_PROJECT_NAME).trim() || ODOO_DEFAULT_PROJECT_NAME;
-}
+// ردیف اول تمپلیت اودو همیشه سرستون است (Date, Project, Task, Description, quantity)
+// و نباید هنگام نوشتن داده‌ها بازنویسی شود.
+const ODOO_TEMPLATE_HEADERS = ['Date', 'Project', 'Task', 'Description', 'quantity'];
+const ODOO_HEADER_ROW_COUNT = 1;
 
-function buildOdooWorksheet(records, fallbackProjectName) {
+function buildOdooWorksheet(sheet, records) {
   const XLSX = window.XLSX;
-  const ws = {};
-  const range = { s: { r: 0, c: 0 }, e: { r: Math.max(records.length - 1, 0), c: 4 } };
+  const ws = sheet || {};
+
+  // فقط ردیف‌های داده (زیر سرستون) پاک‌سازی می‌شوند؛ سرستون و استایل آن دست‌نخورده می‌ماند.
+  Object.keys(ws).forEach(key => {
+    if (key.startsWith('!')) return;
+    const { r } = XLSX.utils.decode_cell(key);
+    if (r >= ODOO_HEADER_ROW_COUNT) delete ws[key];
+  });
 
   records.forEach((record, index) => {
+    const rowIndex = ODOO_HEADER_ROW_COUNT + index;
     const gregorianDate = jalaliDateToGregorianDate(record.work_date);
     if (!gregorianDate) {
       throw new Error(`تاریخ ${record.work_date || 'نامشخص'} قابل تبدیل به میلادی نیست.`);
     }
-    const projectName = getRecordProjectName(record, fallbackProjectName);
+    const projectName = getRecordProjectName(record, ODOO_DEFAULT_PROJECT_NAME);
 
     const values = [
       { t: 'd', v: gregorianDate, z: 'yyyy-mm-dd' },
@@ -1135,11 +1135,16 @@ function buildOdooWorksheet(records, fallbackProjectName) {
     ];
 
     values.forEach((cell, col) => {
-      ws[XLSX.utils.encode_cell({ r: index, c: col })] = cell;
+      ws[XLSX.utils.encode_cell({ r: rowIndex, c: col })] = cell;
     });
   });
 
-  ws['!ref'] = XLSX.utils.encode_range(range);
+  const lastRow = ODOO_HEADER_ROW_COUNT + Math.max(records.length, 0) - 1;
+  const existingRange = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 }, e: { r: ODOO_HEADER_ROW_COUNT - 1, c: 4 } };
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: Math.max(lastRow, existingRange.e.r, ODOO_HEADER_ROW_COUNT - 1), c: Math.max(4, existingRange.e.c) }
+  });
   ws['!cols'] = [
     { wch: 14 },
     { wch: 28 },
@@ -1152,12 +1157,6 @@ function buildOdooWorksheet(records, fallbackProjectName) {
 
 async function exportOdooReport() {
   try {
-    if (!currentUser) {
-      const saved = loadSession();
-      if (saved) currentUser = saved;
-      else { redirectToLogin(false); return; }
-    }
-
     const records = getOdooExportRows();
     if (!records.length) {
       showToast('رکوردی برای خروجی Odoo وجود ندارد', true);
@@ -1165,9 +1164,8 @@ async function exportOdooReport() {
     }
 
     const workbook = await loadOdooTemplateWorkbook();
-    const sheetName = workbook.SheetNames?.[0] || 'test';
-    const projectName = getOdooProjectNameFromTemplate(workbook);
-    workbook.Sheets[sheetName] = buildOdooWorksheet(records, projectName);
+    const sheetName = workbook.SheetNames?.[0] || 'Sheet1';
+    workbook.Sheets[sheetName] = buildOdooWorksheet(workbook.Sheets[sheetName], records);
     if (!workbook.SheetNames?.length) workbook.SheetNames = [sheetName];
 
     window.XLSX.writeFile(workbook, getSafeOdooFileName(), { bookType: 'xlsx', cellDates: true });
@@ -2267,6 +2265,12 @@ window.addEventListener('focus', () => {
 window.addEventListener('DOMContentLoaded', async () => {
   startPersianDigitObserver();
   setupPasswordInputs();
+
+  // صفحه گزارش برای همه بدون ورود در دسترس است؛ از چرخه لاگین رد می‌شویم.
+  if (isReportPage()) {
+    await initReportPage();
+    return;
+  }
 
   const expiredFlag = readStorage(SESSION_EXPIRED_FLAG);
   removeStorage(SESSION_EXPIRED_FLAG);

@@ -7,51 +7,26 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body class="page-report">
-  <div id="passwordGate" class="gate-overlay">
-    <div class="gate-card">
-      <div class="gate-logo">WT</div>
-      <h2 class="gate-title">ساعت کار</h2>
-      <p class="gate-sub">برای مشاهده گزارش وارد شوید.</p>
-      <div class="gate-login-grid">
-        <div class="gate-fields">
-          <label class="floating-field" for="loginInput">
-            <input type="text" id="loginInput" placeholder=" " autocomplete="username">
-            <span>نام کاربری</span>
-          </label>
-          <label class="floating-field" for="passwordInput">
-            <input type="password" id="passwordInput" placeholder=" " autocomplete="current-password">
-            <span>رمز عبور</span>
-          </label>
-        </div>
-        <button class="gate-submit-btn" onclick="checkPassword()" id="gateBtn" type="button">ورود</button>
-      </div>
-      <p class="gate-error" id="gateError"></p>
-    </div>
-  </div>
-
-  <div id="appRoot" style="display:none">
   <div class="container report-page">
     <div class="header">
       <div class="logo">WT</div>
       <h1>Work <span>گزارش ساعات کار</span></h1>
-      <p class="muted-text" id="currentUserBadge" style="margin-top:-8px"></p>
+      <p class="muted-text" style="margin-top:-8px">این صفحه عمومی است؛ نیازی به ورود ندارد.</p>
     </div>
     <section class="report-card">
       <div class="report-header">
         <div>
           <div class="report-eyebrow">آنالیز</div>
-          <h2 class="report-title">ساعات کاری ثبت شده</h2>
+          <h2 class="report-title">ساعات کاری ثبت‌شده</h2>
         </div>
         <div class="report-actions">
-          <button class="btn btn-ghost btn-small" onclick="navigateTo('index.html')">← برگشت</button>
-          <button class="btn btn-ghost btn-small" id="adminReportBtn" style="display:none" onclick="navigateTo('admin.html')">پنل ادمین</button>
+          <button class="btn btn-ghost btn-small" onclick="navigateTo('index.html')">ثبت ساعت کار</button>
           <button class="btn btn-primary btn-small" onclick="exportReportToExcel()">خروجی CSV</button>
-          <button class="btn btn-primary btn-small" onclick="exportOdooReport()">خروجی odoo</button>
-          <button class="btn btn-ghost btn-small" onclick="logout()">خروج</button>
+          <button class="btn btn-primary btn-small" onclick="exportOdooReport()">خروجی Odoo</button>
         </div>
       </div>
       <div class="filter-grid">
-        <div class="field" id="userFilterWrap" style="display:none">
+        <div class="field" id="userFilterWrap">
           <label for="userFilter">کاربر</label>
           <div class="select-wrap"><select id="userFilter"></select></div>
         </div>
@@ -74,53 +49,21 @@
       </div>
       <div id="reportSummary" class="report-summary"></div>
       <div class="table-wrap">
-        <table class="report-table">
+        <table class="report-table report-table--readonly">
           <thead>
             <tr>
-              <th>کاربر</th><th>تاریخ</th><th>تسک</th><th>مجموع ساعت کاری</th><th>شروع</th><th>پایان</th><th>یادداشت‌ها</th><th>اقدامات</th>
+              <th>کاربر</th><th>تاریخ</th><th>تسک</th><th>مجموع ساعت کاری</th><th>شروع</th><th>پایان</th><th>یادداشت‌ها</th>
             </tr>
           </thead>
           <tbody id="reportBody">
-            <tr><td colspan="8" class="loading">در حال بارگذاری...</td></tr>
+            <tr><td colspan="7" class="loading">در حال بارگذاری...</td></tr>
           </tbody>
         </table>
       </div>
     </section>
   </div>
 
-  <div class="modal-backdrop" id="confirmModal">
-    <div class="modal confirm-modal">
-      <h3>تأیید حذف</h3>
-      <p id="confirmText" class="muted-text">آیا مطمئن هستید؟</p>
-      <div class="modal-actions">
-        <button class="btn btn-primary" onclick="confirmYes()">تأیید</button>
-        <button class="btn btn-ghost" onclick="confirmNo()">لغو</button>
-      </div>
-    </div>
-  </div>
-  <div class="modal-backdrop" id="recordModal">
-    <div class="modal">
-      <h3>ویرایش رکورد</h3>
-      <label>تاریخ (YYYY-MM-DD)</label>
-      <input type="text" id="recordDateInput" placeholder="1405-01-01">
-      <label>پروژه</label>
-      <div class="select-wrap"><select id="recordProjectSelect"></select></div>
-      <label>تسک</label>
-      <div class="select-wrap"><select id="recordTaskSelect"></select></div>
-      <label>شروع</label>
-      <input type="time" id="recordStartInput">
-      <label>پایان</label>
-      <input type="time" id="recordEndInput">
-      <label>یادداشت‌ها</label>
-      <textarea id="recordDescInput" placeholder="توضیحات کوتاه..."></textarea>
-      <div class="modal-actions">
-        <button class="btn btn-primary" onclick="saveRecordEdit()">ذخیره تغییرات</button>
-        <button class="btn btn-ghost" onclick="closeRecordModal()">لغو</button>
-      </div>
-    </div>
-  </div>
   <div class="toast" id="toast"></div>
-  </div><!-- /appRoot -->
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
